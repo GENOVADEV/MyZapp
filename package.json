@@ -1,0 +1,23 @@
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "description": "Bot WhatsApp avec Baileys",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "clean": "rm -rf auth_info",
+    "logs": "node view-logs.js",
+    "logs:today": "node view-logs.js --today",
+    "logs:viewonce": "node view-logs.js --viewonce",
+    "logs:stats": "node view-logs.js --stats"
+  },
+  "keywords": ["whatsapp", "bot", "baileys"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "@hapi/boom": "^10.0.1",
+    "pino": "^8.19.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
