@@ -1,0 +1,613 @@
+/* src/app/globals.css */
+
+/* Importation de Tailwind v4 */
+@import "tailwindcss";
+
+/* -----------------------------------------------------------
+   CONFIGURATION DU THÈME PROFESSIONNEL "MYZAPP" (Style WhatsApp)
+   Optimisé pour Tailwind v4 avec animations fluides
+   ----------------------------------------------------------- */
+@theme {
+  /* --- Palette de Couleurs WhatsApp Sémantique --- */
+  
+  /* Vert Principal (Teal WhatsApp Web) */
+  --color-primary: #008069;
+  --color-primary-darker: #006e5a;
+  --color-primary-light: #00a884;
+  
+  /* Vert Brillant (Accent Mobile) */
+  --color-accent: #25D366;
+  --color-accent-hover: #20c55e;
+
+  /* --- Thème CLAIR (Défaut) --- */
+  
+  /* Arrière-plans Clairs */
+  --color-background-app: #f0f2f5;
+  --color-background-chat: #efeae2;
+  --color-panel: #ffffff;
+  --color-panel-hover: #f5f6f6;
+  
+  /* Textes Clairs */
+  --color-text-main: #111b21;
+  --color-text-subtle: #667781;
+  --color-text-muted: #8696a0;
+  
+  /* Bordures et Éléments UI Clairs */
+  --color-border-main: #e9edef;
+  --color-border-hover: #d1d7db;
+  --color-input-bg: #ffffff;
+  --color-input-focus: #f0f2f5;
+  
+  /* Bulles de Chat Claires */
+  --color-bubble-in: #ffffff;
+  --color-bubble-out: #d9fdd3;
+  --color-bubble-shadow: rgba(0, 0, 0, 0.05);
+
+  /* États UI */
+  --color-online: #25D366;
+  --color-typing: #00a884;
+  --color-unread: #25D366;
+  --color-error: #ea0038;
+  --color-warning: #ffa500;
+
+  /* --- Typographie Professionnelle --- */
+  --font-sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  
+  /* --- Espacements WhatsApp --- */
+  --spacing-message: 0.5rem;
+  --spacing-chat: 1rem;
+  --spacing-panel: 1.5rem;
+  
+  /* --- Rayons de Bordure WhatsApp --- */
+  --radius-bubble: 0.5rem;
+  --radius-card: 0.5rem;
+  --radius-modal: 0.75rem;
+  --radius-full: 9999px;
+
+  /* --- Durées d'Animation --- */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+
+  /* --- Fonctions d'Animation (Easing) --- */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* -----------------------------------------------------------
+   GESTION DU MODE SOMBRE (DarkMode)
+   ----------------------------------------------------------- */
+@layer base {
+  .dark {
+    /* Vert Principal ajusté pour le mode sombre */
+    --color-primary: #00a884;
+    --color-primary-darker: #00c39a;
+    --color-primary-light: #06cf9c;
+
+    /* Arrière-plans Sombres */
+    --color-background-app: #111b21;
+    --color-background-chat: #0b141a;
+    --color-panel: #202c33;
+    --color-panel-hover: #2a3942;
+    
+    /* Textes Sombres */
+    --color-text-main: #e9edef;
+    --color-text-subtle: #8696a0;
+    --color-text-muted: #667781;
+    
+    /* Bordures et Éléments UI Sombres */
+    --color-border-main: #2a3942;
+    --color-border-hover: #3b4a54;
+    --color-input-bg: #2a3942;
+    --color-input-focus: #202c33;
+    
+    /* Bulles de Chat Sombres */
+    --color-bubble-in: #202c33;
+    --color-bubble-out: #005c4b;
+    --color-bubble-shadow: rgba(0, 0, 0, 0.3);
+
+    /* États UI Sombres */
+    --color-online: #25D366;
+    --color-typing: #00a884;
+    --color-unread: #25D366;
+  }
+
+  /* --- Styles de Base --- */
+  html {
+    transition: background-color var(--duration-normal) var(--ease-smooth),
+                color var(--duration-normal) var(--ease-smooth);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-background-app);
+    color: var(--color-text-main);
+    font-family: var(--font-sans);
+    transition: background-color var(--duration-normal) var(--ease-smooth);
+  }
+
+  /* --- Reset et Normalisation --- */
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  button {
+    font-family: inherit;
+  }
+}
+
+/* -----------------------------------------------------------
+   ANIMATIONS FLUIDES WHATSAPP
+   ----------------------------------------------------------- */
+@layer utilities {
+  
+  /* --- Animation de Fondu Entrant --- */
+  .animate-fade-in {
+    animation: fadeIn var(--duration-normal) var(--ease-smooth);
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* --- Animation de Slide Depuis la Droite (Messages) --- */
+  .animate-slide-in-right {
+    animation: slideInRight var(--duration-fast) var(--ease-out);
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* --- Animation de Slide Depuis la Gauche --- */
+  .animate-slide-in-left {
+    animation: slideInLeft var(--duration-fast) var(--ease-out);
+  }
+
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* --- Animation de Slide Vers le Haut (Modales) --- */
+  .animate-slide-up {
+    animation: slideUp var(--duration-normal) var(--ease-smooth);
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* --- Animation de Scale (Apparition Douce) --- */
+  .animate-scale-in {
+    animation: scaleIn var(--duration-fast) var(--ease-bounce);
+  }
+
+  @keyframes scaleIn {
+    from {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* --- Animation de Pulsation (Indicateur de Frappe) --- */
+  .animate-pulse-typing {
+    animation: pulseTyping 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulseTyping {
+    0%, 100% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+  }
+
+  /* --- Animation de Rebond (Notifications) --- */
+  .animate-bounce-in {
+    animation: bounceIn var(--duration-slow) var(--ease-bounce);
+  }
+
+  @keyframes bounceIn {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* --- Animation de Shake (Erreur) --- */
+  .animate-shake {
+    animation: shake 0.4s var(--ease-smooth);
+  }
+
+  @keyframes shake {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-10px);
+    }
+    75% {
+      transform: translateX(10px);
+    }
+  }
+
+  /* --- Animation de Shimmer (Loading) --- */
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--color-panel) 0%,
+      var(--color-panel-hover) 50%,
+      var(--color-panel) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  /* --- Points de Frappe WhatsApp --- */
+  .typing-dots {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .typing-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--color-text-subtle);
+    border-radius: 50%;
+    animation: typingDot 1.4s infinite;
+  }
+
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes typingDot {
+    0%, 60%, 100% {
+      transform: translateY(0);
+      opacity: 0.7;
+    }
+    30% {
+      transform: translateY(-10px);
+      opacity: 1;
+    }
+  }
+
+  /* --- Effet de Hover Fluide --- */
+  .hover-lift {
+    transition: transform var(--duration-fast) var(--ease-smooth),
+                box-shadow var(--duration-fast) var(--ease-smooth);
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--color-bubble-shadow);
+  }
+
+  /* --- Effet de Ripple WhatsApp --- */
+  .ripple {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ripple::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width var(--duration-slow) var(--ease-out),
+                height var(--duration-slow) var(--ease-out);
+  }
+
+  .ripple:active::after {
+    width: 300px;
+    height: 300px;
+  }
+
+  /* --- Transition de Message (Apparition Progressive) --- */
+  .message-appear {
+    animation: messageAppear var(--duration-normal) var(--ease-out);
+  }
+
+  @keyframes messageAppear {
+    from {
+      transform: scale(0.95) translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* --- Badge de Notification Animé --- */
+  .badge-pulse {
+    animation: badgePulse 2s ease-in-out infinite;
+  }
+
+  @keyframes badgePulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 10px rgba(37, 211, 102, 0);
+    }
+  }
+
+  /* --- Transition Douce pour Tous les Éléments Interactifs --- */
+  .transition-smooth {
+    transition: all var(--duration-fast) var(--ease-smooth);
+  }
+
+  .transition-colors {
+    transition: background-color var(--duration-fast) var(--ease-smooth),
+                color var(--duration-fast) var(--ease-smooth),
+                border-color var(--duration-fast) var(--ease-smooth);
+  }
+
+  /* --- Skeleton Loading WhatsApp --- */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-panel) 25%,
+      var(--color-panel-hover) 50%,
+      var(--color-panel) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton 1.5s ease-in-out infinite;
+    border-radius: 0.25rem;
+  }
+
+  @keyframes skeleton {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* --- Overlay Animé (Modales/Dialogs) --- */
+  .overlay-fade {
+    animation: overlayFade var(--duration-normal) var(--ease-smooth);
+  }
+
+  @keyframes overlayFade {
+    from {
+      background-color: rgba(0, 0, 0, 0);
+    }
+    to {
+      background-color: rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  /* --- Animation de Checkmark (Message Envoyé) --- */
+  .checkmark-animate {
+    animation: checkmarkDraw 0.5s var(--ease-out);
+  }
+
+  @keyframes checkmarkDraw {
+    from {
+      stroke-dashoffset: 100;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* --- Scroll Fluide --- */
+  .smooth-scroll {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- Focus Ring WhatsApp Style --- */
+  .focus-ring {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition: outline-color var(--duration-fast) var(--ease-smooth);
+  }
+
+  .focus-ring:focus-visible {
+    outline-color: var(--color-primary);
+  }
+}
+
+/* -----------------------------------------------------------
+   ÉTATS INTERACTIFS WHATSAPP
+   ----------------------------------------------------------- */
+@layer components {
+  
+  /* --- Bouton Principal WhatsApp --- */
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+    transition: all var(--duration-fast) var(--ease-smooth);
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--color-primary-darker);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 128, 105, 0.3);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  /* --- Input WhatsApp Style --- */
+  .input-whatsapp {
+    background-color: var(--color-input-bg);
+    border: 1px solid var(--color-border-main);
+    border-radius: var(--radius-card);
+    padding: 0.75rem 1rem;
+    color: var(--color-text-main);
+    transition: all var(--duration-fast) var(--ease-smooth);
+  }
+
+  .input-whatsapp:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    background-color: var(--color-input-focus);
+    box-shadow: 0 0 0 3px rgba(0, 128, 105, 0.1);
+  }
+
+  /* --- Carte Panel WhatsApp --- */
+  .panel-card {
+    background-color: var(--color-panel);
+    border-radius: var(--radius-card);
+    transition: all var(--duration-fast) var(--ease-smooth);
+  }
+
+  .panel-card:hover {
+    background-color: var(--color-panel-hover);
+  }
+
+  /* --- Bulle de Message --- */
+  .message-bubble {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-bubble);
+    max-width: 65%;
+    word-wrap: break-word;
+    box-shadow: 0 1px 0.5px var(--color-bubble-shadow);
+    transition: transform var(--duration-fast) var(--ease-smooth);
+  }
+
+  .message-bubble:hover {
+    transform: scale(1.02);
+  }
+
+  .message-bubble-in {
+    background-color: var(--color-bubble-in);
+    color: var(--color-text-main);
+  }
+
+  .message-bubble-out {
+    background-color: var(--color-bubble-out);
+    color: var(--color-text-main);
+    margin-left: auto;
+  }
+}
+
+/* -----------------------------------------------------------
+   SCROLLBAR PERSONNALISÉE (Style WhatsApp)
+   ----------------------------------------------------------- */
+@layer utilities {
+  .scrollbar-whatsapp::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-whatsapp::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-whatsapp::-webkit-scrollbar-thumb {
+    background: var(--color-border-main);
+    border-radius: 3px;
+    transition: background var(--duration-fast) var(--ease-smooth);
+  }
+
+  .scrollbar-whatsapp::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-subtle);
+  }
+
+  /* Firefox */
+  .scrollbar-whatsapp {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-main) transparent;
+  }
+}
+
+/* -----------------------------------------------------------
+   ACCESSIBILITÉ
+   ----------------------------------------------------------- */
+@layer base {
+  /* Réduire les animations pour les utilisateurs qui préfèrent */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Mode contraste élevé */
+  @media (prefers-contrast: high) {
+    .btn-primary {
+      border: 2px solid currentColor;
+    }
+  }
+}

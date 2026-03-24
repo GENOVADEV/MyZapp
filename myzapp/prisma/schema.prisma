@@ -1,0 +1,998 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTHENTIFICATION & UTILISATEURS
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  username      String?   @unique // Pseudo unique pour l'app
+  phone         String?   @unique
+  phoneVerified DateTime?
+  image         String?   // Avatar URL
+  password      String?   // Hash du mot de passe
+  
+  // Préférences utilisateur
+  language      String    @default("fr") // Langue préférée
+  theme         String    @default("light") // light, dark
+  timezone      String    @default("Europe/Paris")
+  
+  // Sécurité
+  twoFactorEnabled     Boolean  @default(false)
+  twoFactorSecret      String?
+  lastLoginAt          DateTime?
+  lastLoginIp          String?
+  failedLoginAttempts  Int      @default(0)
+  lockedUntil          DateTime?
+  
+  // Statut et abonnement
+  status        UserStatus @default(ACTIVE)
+  role          UserRole   @default(USER)
+  plan          Plan       @default(FREE)
+  planExpiresAt DateTime?
+  trialEndsAt   DateTime?
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime? // Soft delete
+  lastSyncAt        DateTime?
+  
+  // Relations
+  accounts          Account[]
+  sessions          Session[]
+  conversations     Conversation[]
+  messages          Message[]
+  contacts          Contact[]       @relation("UserContacts")
+  contactOf         Contact[]       @relation("ContactUser")
+  groups            GroupMember[]
+  ownedGroups       Group[]         @relation("GroupOwner")
+  bots              Bot[]
+  scheduledMessages ScheduledMessage[]
+  folders           Folder[]
+  devices           Device[]
+  notifications     Notification[]
+  payments          Payment[]
+  apiKeys           ApiKey[]
+  auditLogs         AuditLog[]
+  mediaFiles        MediaFile[]
+  voiceNotes        VoiceNote[]
+  reactions         Reaction[]
+  polls             Poll[]
+  pollVotes         PollVote[]
+  calls             Call[]          @relation("CallParticipants")
+  initiatedCalls    Call[]          @relation("CallInitiator")
+  subscriptions     Subscription[]
+  
+  @@index([email])
+  @@index([username])
+  @@index([phone])
+  @@index([plan])
+  @@index([createdAt])
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String  // oauth, email, credentials
+  provider           String  // google, facebook, apple, credentials
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  userAgent    String?
+  ipAddress    String?
+  deviceId     String?
+  
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id])
+  
+  @@index([userId])
+  @@index([deviceId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  type       TokenType @default(EMAIL_VERIFICATION)
+  expires    DateTime
+  createdAt  DateTime @default(now())
+  
+  @@unique([identifier, token])
+  @@index([expires])
+}
+
+model Device {
+  id           String   @id @default(cuid())
+  userId       String
+  deviceName   String   // "iPhone 14 Pro", "Chrome on Windows"
+  deviceType   DeviceType
+  deviceToken  String?  // Pour les notifications push
+  platform     String?  // iOS, Android, Web
+  osVersion    String?
+  appVersion   String?
+  isActive     Boolean  @default(true)
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions Session[]
+  
+  @@index([userId])
+  @@index([deviceToken])
+}
+
+// ============================================================================
+// CONVERSATIONS & MESSAGES
+// ============================================================================
+
+model Conversation {
+  id                String   @id @default(cuid())
+  userId            String   // Propriétaire de la conversation
+  type              ConversationType
+  whatsappId        String   // L'ID original de WhatsApp (ex: 1234567890@s.whatsapp.net)
+
+  
+  // Métadonnées
+  name              String?  // Pour les groupes
+  description       String?
+  avatar            String?
+  
+  // Contact direct (si type = DIRECT)
+  contactId         String?
+  
+  // Groupe (si type = GROUP)
+  groupId           String?
+  
+  // Paramètres
+  isPinned          Boolean  @default(false)
+  isMuted           Boolean  @default(false)
+  mutedUntil        DateTime?
+  isArchived        Boolean  @default(false)
+  isBlocked         Boolean  @default(false)
+  
+  // Sécurité
+  isLocked          Boolean  @default(false)
+  lockPin           String?  // Hash du PIN pour verrouillage
+  
+  // Messages éphémères
+  ephemeralEnabled  Boolean  @default(false)
+  ephemeralDuration Int?     // En secondes
+  
+  // Dossier
+  folderId          String?
+  
+  // Dernière activité
+  lastMessageAt     DateTime?
+  lastReadAt        DateTime?
+  unreadCount       Int      @default(0)
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+  
+  // Relations
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact   Contact?   @relation(fields: [contactId], references: [id])
+  group     Group?     @relation(fields: [groupId], references: [id])
+  folder    Folder?    @relation(fields: [folderId], references: [id])
+  messages  Message[]
+  drafts    Draft[]
+  
+  @@unique([userId, contactId])
+  @@unique([userId, groupId])
+  @@index([userId])
+  @@index([contactId])
+  @@index([groupId])
+  @@index([folderId])
+  @@index([lastMessageAt])
+  @@unique([userId, whatsappId])  // ← Important pour éviter les doublons
+  @@index([whatsappId])
+  @@index([userId, lastMessageAt])
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  conversationId  String
+  senderId        String
+  
+  // Contenu
+  type            MessageType
+  content         String?  @db.Text // Texte du message
+  
+  // Médias
+  mediaFileId     String?
+  voiceNoteId     String?
+  
+  // Message de réponse
+  replyToId       String?
+  
+  // Message transféré
+  forwardedFromId String?
+  forwardCount    Int      @default(0)
+  
+  // Statut
+  status          MessageStatus @default(SENT)
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  
+  // Édition
+  isEdited        Boolean  @default(false)
+  editedAt        DateTime?
+  originalContent String?  @db.Text
+  editHistory     Json?    // [{content, editedAt}]
+  
+  // Suppression
+  isDeleted       Boolean  @default(false)
+  deletedAt       DateTime?
+  deletedFor      String[] // IDs des users pour qui c'est supprimé
+  
+  // Épinglé
+  isPinned        Boolean  @default(false)
+  
+  // Messages éphémères
+  isEphemeral      Boolean  @default(false)  // Pour les messages qui disparaissent
+  ephemeralExpiresAt DateTime?
+  
+  // Métadonnées
+  metadata        Json?    // Pour stocker des données custom
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  expiresAt  DateTime?
+  
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id])
+  mediaFile      MediaFile?   @relation(fields: [mediaFileId], references: [id])
+  voiceNote      VoiceNote?   @relation(fields: [voiceNoteId], references: [id])
+  replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies        Message[]    @relation("MessageReplies")
+  forwardedFrom  Message?     @relation("MessageForwards", fields: [forwardedFromId], references: [id])
+  forwards       Message[]    @relation("MessageForwards")
+  reactions      Reaction[]
+  
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@index([status])
+  @@index([ephemeralExpiresAt])
+  @@index([expiresAt])
+  @@index([conversationId, createdAt])  // Pour le pagination
+  @@index([senderId, createdAt])
+}
+
+model ScheduledMessage {
+  id              String   @id @default(cuid())
+  userId          String
+  conversationId  String?  @unique
+  
+  // Destinataire
+  recipientType   RecipientType
+  recipientId     String   // Contact ID ou Group ID
+  
+  // Contenu
+  type            MessageType
+  content         String?  @db.Text
+  mediaFileId     String?
+  
+  // Planification
+  scheduledFor    DateTime
+  timezone        String   @default("Europe/Paris")
+  
+  // Statut
+  status          ScheduledMessageStatus @default(PENDING)
+  sentAt          DateTime?
+  failedAt        DateTime?
+  errorMessage    String?
+  
+  // Options
+  repeatType      RepeatType @default(ONCE)
+  repeatUntil     DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaFile MediaFile? @relation(fields: [mediaFileId], references: [id])
+  
+  @@index([userId])
+  @@index([scheduledFor])
+  @@index([status])
+}
+
+model Draft {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  
+  content        String?  @db.Text
+  mediaFiles     String[] // Array of media file IDs
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+// ============================================================================
+// CONTACTS & GROUPES
+// ============================================================================
+
+model Contact {
+  id              String   @id @default(cuid())
+  userId          String   // Propriétaire du contact
+  contactUserId   String?  // L'ID User si c'est un utilisateur MyZapp
+  
+  // Informations
+  name            String
+  phone           String?
+  email           String?
+  avatar          String?
+  bio             String?
+  
+  // Organisation
+  isFavorite      Boolean  @default(false)
+  isBlocked       Boolean  @default(false)
+  
+  // Notes personnelles
+  notes           String?  @db.Text
+  customFields    Json?    // {company: "", birthday: "", etc.}
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user          User           @relation("UserContacts", fields: [userId], references: [id], onDelete: Cascade)
+  contactUser   User?          @relation("ContactUser", fields: [contactUserId], references: [id])
+  conversations Conversation[]
+  
+  @@unique([userId, phone])
+  @@unique([userId, contactUserId])
+  @@index([userId])
+  @@index([contactUserId])
+}
+
+model Group {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  avatar          String?
+  ownerId         String
+  
+  // Paramètres
+  maxMembers      Int      @default(256)
+  isPublic        Boolean  @default(false)
+  inviteLink      String?  @unique
+  
+  // Permissions
+  onlyAdminsCanPost    Boolean @default(false)
+  onlyAdminsCanEdit    Boolean @default(false)
+  membersCanAddOthers  Boolean @default(true)
+  
+  // Messages éphémères
+  ephemeralEnabled     Boolean @default(false)
+  ephemeralDuration    Int?
+  
+  // Modération
+  moderationEnabled    Boolean @default(false)
+  bannedWords          String[]
+  autoDeleteSpam       Boolean @default(false)
+  
+  // Statistiques
+  totalMessages        Int     @default(0)
+  activeMembers        Int     @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  
+  owner         User           @relation("GroupOwner", fields: [ownerId], references: [id])
+  members       GroupMember[]
+  conversations Conversation[]
+  polls         Poll[]
+  
+  @@index([ownerId])
+  @@index([inviteLink])
+}
+
+model GroupMember {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  
+  role      GroupRole @default(MEMBER)
+  
+  // Permissions individuelles
+  canPost   Boolean  @default(true)
+  canInvite Boolean  @default(true)
+  
+  // Statut
+  isMuted   Boolean  @default(false)
+  mutedUntil DateTime?
+  
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+  
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+// ============================================================================
+// MÉDIAS & FICHIERS
+// ============================================================================
+
+model MediaFile {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  // Fichier
+  fileName        String
+  fileSize        Int      // En bytes
+  mimeType        String
+  url             String   // URL de stockage (S3, Cloudinary, etc.)
+  thumbnailUrl    String?
+  
+  // Métadonnées
+  width           Int?
+  height          Int?
+  duration        Int?     // Pour vidéos/audio en secondes
+  
+  // Type
+  type            MediaType
+  
+  // Compression
+  isCompressed    Boolean  @default(false)
+  originalUrl     String?  // URL originale si compressé
+  
+  // Stockage
+  storageProvider String   @default("s3")
+  storagePath     String
+  
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime? // Pour fichiers temporaires
+  
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages          Message[]
+  scheduledMessages ScheduledMessage[]
+  
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model VoiceNote {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  // Audio
+  url             String
+  duration        Int      // En secondes
+  waveform        Json?    // Données pour visualisation
+  
+  // Transcription
+  transcription   String?  @db.Text
+  transcribedAt   DateTime?
+  language        String?
+  
+  // Métadonnées
+  fileSize        Int
+  mimeType        String   @default("audio/ogg")
+  
+  createdAt       DateTime @default(now())
+  
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+  
+  @@index([userId])
+}
+
+// ============================================================================
+// RÉACTIONS & INTERACTIONS
+// ============================================================================
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  
+  emoji     String   // L'emoji ou identifiant de réaction
+  
+  createdAt DateTime @default(now())
+  
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+}
+
+model Poll {
+  id              String   @id @default(cuid())
+  groupId         String?  // Null si sondage dans conversation privée
+  createdBy       String
+  
+  question        String
+  options         Json     // [{id, text, votes: 0}]
+  
+  // Paramètres
+  allowMultiple   Boolean  @default(false)
+  isAnonymous     Boolean  @default(false)
+  
+  // Expiration
+  expiresAt       DateTime?
+  isClosed        Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  group   Group?     @relation(fields: [groupId], references: [id])
+  creator User       @relation(fields: [createdBy], references: [id])
+  votes   PollVote[]
+  
+  @@index([groupId])
+  @@index([createdBy])
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  userId    String
+  
+  optionIds String[] // IDs des options choisies
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([pollId, userId])
+  @@index([pollId])
+  @@index([userId])
+}
+
+// ============================================================================
+// APPELS
+// ============================================================================
+
+model Call {
+  id              String   @id @default(cuid())
+  initiatorId     String
+  
+  type            CallType
+  status          CallStatus @default(RINGING)
+  
+  // Participants
+  participantIds  String[]
+  
+  // Timing
+  startedAt       DateTime?
+  endedAt         DateTime?
+  duration        Int?     // En secondes
+  
+  // Recording
+  isRecorded      Boolean  @default(false)
+  recordingUrl    String?
+  
+  // Qualité
+  quality         CallQuality?
+  
+  createdAt       DateTime @default(now())
+  
+  initiator    User   @relation("CallInitiator", fields: [initiatorId], references: [id])
+  participants User[] @relation("CallParticipants")
+  
+  @@index([initiatorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// ORGANISATION
+// ============================================================================
+
+model Folder {
+  id            String   @id @default(cuid())
+  userId        String
+  
+  name          String
+  icon          String?  // Emoji ou icône
+  color         String?  // Couleur hexadécimale
+  
+  position      Int      @default(0) // Pour l'ordre
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  
+  @@index([userId])
+  @@index([position])
+}
+
+// ============================================================================
+// BOTS & AUTOMATISATION
+// ============================================================================
+
+model Bot {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  name            String
+  description     String?
+  avatar          String?
+  
+  // Configuration
+  type            BotType
+  config          Json     // Configuration spécifique au type
+  
+  // Règles d'activation
+  triggers        Json     // Mots-clés, patterns, etc.
+  
+  // Statut
+  isActive        Boolean  @default(true)
+  
+  // Statistiques
+  totalMessages   Int      @default(0)
+  lastTriggeredAt DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([isActive])
+}
+
+// ============================================================================
+// PAIEMENTS & ABONNEMENTS
+// ============================================================================
+
+model Subscription {
+  id              String   @id @default(cuid())
+  userId          String
+  
+  plan            Plan
+  status          SubscriptionStatus
+  
+  // Paiement
+  provider        PaymentProvider
+  providerSubId   String?  // ID chez Stripe/PayPal
+  
+  // Période
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  
+  // Essai
+  trialStart      DateTime?
+  trialEnd        DateTime?
+  
+  // Annulation
+  cancelAtPeriodEnd Boolean @default(false)
+  canceledAt        DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments Payment[]
+  
+  @@index([userId])
+  @@index([status])
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  userId          String
+  subscriptionId  String?
+  
+  amount          Float
+  currency        String   @default("EUR")
+  
+  status          PaymentStatus
+  provider        PaymentProvider
+  
+  providerPaymentId String? @unique
+  
+  // Métadonnées
+  metadata        Json?
+  
+  createdAt       DateTime @default(now())
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  
+  @@index([userId])
+  @@index([status])
+}
+
+// ============================================================================
+// API & INTÉGRATIONS
+// ============================================================================
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  userId      String
+  
+  name        String
+  key         String   @unique
+  
+  // Permissions
+  scopes      String[] // read, write, admin, etc.
+  
+  // Limitations
+  rateLimit   Int      @default(1000) // Requêtes par heure
+  
+  // Statut
+  isActive    Boolean  @default(true)
+  lastUsedAt  DateTime?
+  
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([key])
+}
+
+// ============================================================================
+// NOTIFICATIONS & SYSTÈME
+// ============================================================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  
+  type      NotificationType
+  title     String
+  body      String
+  
+  // Données
+  data      Json?
+  
+  // Lien d'action
+  actionUrl String?
+  
+  // Statut
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  
+  createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  
+  action    String   // create_message, delete_conversation, etc.
+  entity    String   // Message, Conversation, User, etc.
+  entityId  String
+  
+  // Détails
+  changes   Json?    // Avant/Après
+  metadata  Json?
+  
+  // Contexte
+  ipAddress String?
+  userAgent String?
+  
+  createdAt DateTime @default(now())
+  
+  user User? @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum Plan {
+  FREE
+  YOUNG
+  AGENT
+  BUSINESS
+  PRO
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  TWO_FACTOR
+  PHONE_VERIFICATION
+}
+
+enum DeviceType {
+  WEB
+  MOBILE
+  DESKTOP
+  TABLET
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+  SELF
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  VOICE_NOTE
+  DOCUMENT
+  LOCATION
+  CONTACT
+  STICKER
+  POLL
+  SYSTEM
+}
+
+enum MessageStatus {
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  VOICE_NOTE
+}
+
+enum RecipientType {
+  CONTACT
+  GROUP
+}
+
+enum ScheduledMessageStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum RepeatType {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum CallType {
+  AUDIO
+  VIDEO
+}
+
+enum CallStatus {
+  RINGING
+  ONGOING
+  ENDED
+  MISSED
+  DECLINED
+}
+
+enum CallQuality {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+}
+
+enum BotType {
+  AUTO_REPLY
+  WELCOME_MESSAGE
+  SCHEDULED
+  CUSTOM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  TRIALING
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+  CREDIT_CARD
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  MENTION
+  CALL_MISSED
+  GROUP_INVITE
+  SYSTEM
+  PAYMENT
+  SECURITY
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
