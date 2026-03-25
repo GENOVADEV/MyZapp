@@ -1,22 +1,23 @@
-// src/app/api/bot/user/sync/route.ts
+// src/app/api/bot/users/sync/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { syncUserData } from '@/services/syncDB/userSyncService';
-import { getServerSession } from 'next-auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 export async function POST(request: NextRequest) {
+  const { user: authUser } = useAuth();
+  const userId = authUser?.id;
   try {
-    const session = await getServerSession();
-    if (!session?.user?.name) {
+    if (!userId) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
     const { user: whatsappUser } = await request.json();
-    
+
     if (!whatsappUser) {
       return NextResponse.json({ error: 'Données utilisateur manquantes' }, { status: 400 });
     }
 
-    const result = await syncUserData(whatsappUser, session.user.name);
+    const result = await syncUserData(whatsappUser, userId);
 
     return NextResponse.json(result);
   } catch (error) {

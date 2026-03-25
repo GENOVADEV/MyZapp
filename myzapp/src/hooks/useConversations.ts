@@ -104,7 +104,7 @@ export function useConversations(filters?: ConversationFilters, page: number = 1
       if (filters?.search) params.append('search', filters.search);
       if (filters?.folderId) params.append('folderId', filters.folderId);
 
-      const response = await fetch(`/api/conversations?${params}`);
+      const response = await fetch(`/api/bot/conversations?${params}`);
       
       if (!response.ok) {
         throw new Error('Erreur lors du chargement des conversations');
@@ -119,7 +119,7 @@ export function useConversations(filters?: ConversationFilters, page: number = 1
   // Mutation pour épingler/désépingler une conversation
   const togglePinMutation = useMutation({
     mutationFn: async (conversationId: string) => {
-      const response = await fetch(`/api/conversations/${conversationId}/pin`, {
+      const response = await fetch(`/api/bot/conversations/${conversationId}/pin`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -151,7 +151,7 @@ export function useConversations(filters?: ConversationFilters, page: number = 1
   // Mutation pour archiver/désarchiver une conversation
   const toggleArchiveMutation = useMutation({
     mutationFn: async (conversationId: string) => {
-      const response = await fetch(`/api/conversations/${conversationId}/archive`, {
+      const response = await fetch(`/api/bot/conversations/${conversationId}/archive`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -178,7 +178,7 @@ export function useConversations(filters?: ConversationFilters, page: number = 1
   // Mutation pour marquer comme lu
   const markAsReadMutation = useMutation({
     mutationFn: async (conversationId: string) => {
-      const response = await fetch(`/api/conversations/${conversationId}/read`, {
+      const response = await fetch(`/api/bot/conversations/${conversationId}/read`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -205,7 +205,7 @@ export function useConversations(filters?: ConversationFilters, page: number = 1
   // Mutation pour déplacer vers un dossier
   const moveToFolderMutation = useMutation({
     mutationFn: async ({ conversationId, folderId }: { conversationId: string; folderId?: string }) => {
-      const response = await fetch(`/api/conversations/${conversationId}/folder`, {
+      const response = await fetch(`/api/bot/conversations/${conversationId}/folder`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folderId })
@@ -242,7 +242,7 @@ export function useConversations(filters?: ConversationFilters, page: number = 1
 
   // Fonction pour rechercher des conversations
   const searchConversations = useCallback(async (query: string): Promise<Conversation[]> => {
-    const response = await fetch(`/api/conversations/search?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`/api/bot/conversations/search?q=${encodeURIComponent(query)}`);
     
     if (!response.ok) {
       throw new Error('Erreur lors de la recherche');
@@ -254,7 +254,7 @@ export function useConversations(filters?: ConversationFilters, page: number = 1
 
   // Fonction pour obtenir les statistiques
   const getStats = useCallback(async () => {
-    const response = await fetch('/api/conversations/stats');
+    const response = await fetch('/api/bot/conversations/stats');
     
     if (!response.ok) {
       throw new Error('Erreur lors de la récupération des statistiques');
@@ -323,7 +323,7 @@ export function useConversation(conversationId: string) {
   } = useQuery({
     queryKey: ['conversation', conversationId],
     queryFn: async (): Promise<Conversation> => {
-      const response = await fetch(`/api/conversations/${conversationId}`);
+      const response = await fetch(`/api/bot/conversations/${conversationId}`);
       
       if (!response.ok) {
         throw new Error('Conversation non trouvée');
@@ -354,7 +354,7 @@ export function useConversationMessages(conversationId: string, page: number = 1
     queryKey: ['conversation-messages', conversationId, page, limit],
     queryFn: async () => {
       const response = await fetch(
-        `/api/conversations/${conversationId}/messages?page=${page}&limit=${limit}`
+        `/api/bot/users/conversations/${conversationId}/messages?page=${page}&limit=${limit}`
       );
       
       if (!response.ok) {

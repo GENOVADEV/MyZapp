@@ -23,9 +23,9 @@ export const API_ENDPOINTS = {
     settings: "/api/users/settings",
   },
   bot: {
-    status: "/api/bot/status",
-    start: "/api/bot/start",
-    stop: "/api/bot/stop",
+    status: "/api/bot/users/whatsapp-status",
+    start: "/api/bot/users/start",
+    stop: "/api/bot/users/stop",
   }
 };
 

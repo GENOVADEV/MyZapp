@@ -30,11 +30,11 @@ export default function RootLayout({
           {/* 👇 2. Enveloppe {children} avec AuthProvider */}
           <AuthProvider>
             {/* 👇 1. Enveloppe {children} avec BotProvider */}
-            <BotProvider>
-              <QueryProvider>
+            <QueryProvider>
+              <BotProvider>
                 {children}
-              </QueryProvider>
-            </BotProvider>
+              </BotProvider>
+            </QueryProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

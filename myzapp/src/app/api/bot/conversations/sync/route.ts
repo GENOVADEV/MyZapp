@@ -1,4 +1,4 @@
-// src/app/api/bot/conversations/sync/route.ts
+// src/app/api/bot/users/conversations/sync/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { syncConversations } from '@/services/syncDB/conversationSyncService';
 import { getServerSession } from 'next-auth';

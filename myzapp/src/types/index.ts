@@ -195,6 +195,9 @@ export interface User {
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+  whatsappConnected : boolean;
+  whatsappId : string;
+  lastWhatsappSync: Date;
 }
 
 export interface Account {

@@ -1,16 +1,17 @@
-// src/app/api/bot/user/whatsapp-status/route.ts
+// src/app/api/bot/users/whatsapp-status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { UserSyncManager } from '@/services/syncDB/userSyncService';
-import { getServerSession } from 'next-auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 export async function GET(request: NextRequest) {
+  const { user: authUser } = useAuth();
+  const userId = authUser?.id;
   try {
-    const session = await getServerSession();
-    if (!session?.user?.name) {
+    if (!userId) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const status = await UserSyncManager.getWhatsAppStatus(session.user.name);
+    const status = await UserSyncManager.getWhatsAppStatus(userId);
 
     return NextResponse.json(status);
   } catch (error) {

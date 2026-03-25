@@ -78,7 +78,8 @@ export function useWhatsAppConnection(props?: UseWhatsAppConnectionProps) {
                 newSocket.emit('init_whatsapp', {
                     sessionId: newSessionId,
                     method,
-                    phone: phone?.replace(/[^0-9]/g, "")
+                    phone: phone?.replace(/[^0-9]/g, ""),
+                    userId
                 });
             });
 
@@ -94,6 +95,7 @@ export function useWhatsAppConnection(props?: UseWhatsAppConnectionProps) {
 
                     case 'pairing_code':
                         setPairingCode(event.data.code);
+                        setStatus('connecting')
                         props?.onPairingCodeReceived?.(event.data.code, event.data.phone);
                         break;
 

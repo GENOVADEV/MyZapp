@@ -34,13 +34,13 @@ io.on('connection', (socket) => {
 
     // Authentification
     socket.on('authenticate', async (data) => {
-        const { sessionId, userId } = data;
-        console.log(`🔐 Authentification session: ${sessionId}, utilisateur: ${userId}`);
+        const { sessionId, realUserid } = data;
+        console.log(`🔐 Authentification session: ${sessionId}, utilisateur: ${realUserid}`);
 
         // Stocker la session
-        sessions.set(sessionId, { 
-            socketId: socket.id, 
-            userId,
+        sessions.set(sessionId, {
+            socketId: socket.id,
+            realUserid,
             socket: socket
         });
         socket.join(sessionId);
@@ -51,10 +51,16 @@ io.on('connection', (socket) => {
     // Initialiser WhatsApp
     socket.on('init_whatsapp', async (data) => {
         const { sessionId, method, phone, userId } = data;
-        console.log(`📱 Initialisation WhatsApp: ${method} pour ${sessionId}, utilisateur: ${userId}`);
-
         try {
-            await initializeWhatsAppSession(socket, sessionId, method, phone, userId);
+            const sessionData = sessions.get(sessionId);
+            const realUserId = userId || sessionData?.userId;
+            if (!realUserId) {
+                console.log('realUserId : ', realUserId)
+                throw new Error('realUserid manquant');
+            } else {
+                console.log(`📱 Initialisation WhatsApp: ${method} pour ${sessionId}, utilisateur: ${realUserId}`);
+            }
+            await initializeWhatsAppSession(socket, sessionId, method, phone, realUserId);
         } catch (error) {
             console.error('❌ Erreur initialisation WhatsApp:', error);
             socket.emit('whatsapp_event', {
@@ -67,7 +73,7 @@ io.on('connection', (socket) => {
     // Déconnexion
     socket.on('disconnect', (reason) => {
         console.log(`🔌 Client déconnecté: ${socket.id}, raison: ${reason}`);
-        
+
         // Nettoyer les sessions associées à ce socket
         for (const [sessionId, session] of sessions.entries()) {
             if (session.socketId === socket.id) {
@@ -80,7 +86,7 @@ io.on('connection', (socket) => {
                         console.error('Erreur fermeture socket WhatsApp:', error);
                     }
                 }
-                
+
                 sessions.delete(sessionId);
                 console.log(`🗑️ Session nettoyée: ${sessionId}`);
             }
@@ -89,7 +95,7 @@ io.on('connection', (socket) => {
 });
 
 // Fonction d'initialisation WhatsApp
-async function initializeWhatsAppSession(socket: any, sessionId: string, method: 'qr' | 'phone', phone?: string, userId?: string) {
+async function initializeWhatsAppSession(socket: any, sessionId: string, method: 'qr' | 'phone', phone?: string, realUserid?: string) {
     const authFolder = path.join(process.cwd(), 'whatsapp_sessions', sessionId);
 
     // Créer le dossier de session
@@ -172,15 +178,15 @@ async function initializeWhatsAppSession(socket: any, sessionId: string, method:
         }
 
         // CONNEXION ÉTABLIE - SYNCHRONISATION DES DONNÉES
-        if (connection === 'open' && userId) {
+        if (connection === 'open' && realUserid) {
             console.log('✅ WhatsApp connecté - Début synchronisation des données...');
 
             try {
                 // 1. Synchroniser les données utilisateur WhatsApp
                 if (sock.user) {
-                    await syncUserData(sock.user, userId);
+                    await syncUserData((sock as any).user, realUserid);
                     console.log('👤 Données utilisateur synchronisées');
-                    
+
                     socket.emit('sync_progress', {
                         type: 'user',
                         status: 'completed',
@@ -191,9 +197,9 @@ async function initializeWhatsAppSession(socket: any, sessionId: string, method:
                 // 2. Synchroniser les contacts
                 try {
                     const contacts = await (sock as any).fetchContacts();
-                    const contactResult = await syncContacts(contacts, userId);
+                    const contactResult = await syncContacts(contacts, realUserid);
                     console.log(`📇 ${contactResult.synced} contacts synchronisés`);
-                    
+
                     socket.emit('sync_progress', {
                         type: 'contacts',
                         status: 'completed',
@@ -213,12 +219,12 @@ async function initializeWhatsAppSession(socket: any, sessionId: string, method:
                 // 3. Synchroniser les conversations
                 try {
                     const chats = await (sock as any).fetchChats();
-                    const conversationResult = await syncConversations(chats, userId);
+                    const conversationResult = await syncConversations(chats, realUserid);
                     console.log(`💬 ${(conversationResult as any).synced} conversations synchronisées`);
-                    
+
                     socket.emit('sync_progress', {
                         type: 'conversations',
-                        status: 'completed', 
+                        status: 'completed',
                         synced: (conversationResult as any).synced,
                         total: (conversationResult as any).stats.total,
                         message: `${(conversationResult as any).synced} conversations synchronisées`
@@ -233,7 +239,7 @@ async function initializeWhatsAppSession(socket: any, sessionId: string, method:
                 }
 
                 console.log('✅ Synchronisation terminée avec succès');
-                
+
                 // Émettre l'événement de connexion réussie
                 socket.emit('whatsapp_event', {
                     type: 'connected',
@@ -270,7 +276,7 @@ async function initializeWhatsAppSession(socket: any, sessionId: string, method:
                 setTimeout(async () => {
                     try {
                         console.log('🔄 Tentative de reconnexion...');
-                        await initializeWhatsAppSession(socket, sessionId, method, phone, userId);
+                        await initializeWhatsAppSession(socket, sessionId, method, phone, realUserid);
                     } catch (error) {
                         console.error('❌ Échec reconnexion:', error);
                         socket.emit('whatsapp_event', {
@@ -309,11 +315,11 @@ async function initializeWhatsAppSession(socket: any, sessionId: string, method:
 
     // Nouveaux contacts
     sock.ev.on('contacts.upsert', async (contacts) => {
-        if (userId) {
+        if (realUserid) {
             try {
-                const result = await syncContacts((contacts as any), userId);
+                const result = await syncContacts((contacts as any), realUserid);
                 console.log(`🔄 ${result.synced} nouveaux contacts synchronisés en temps réel`);
-                
+
                 socket.emit('contacts_updated', {
                     type: 'contacts_upsert',
                     synced: result.synced,
@@ -327,11 +333,11 @@ async function initializeWhatsAppSession(socket: any, sessionId: string, method:
 
     // Nouvelles conversations
     sock.ev.on('chats.upsert', async (chats) => {
-        if (userId) {
+        if (realUserid) {
             try {
-                const result = await syncConversations(chats, userId);
+                const result = await syncConversations((chats as any), realUserid);
                 console.log(`💬 ${(result as any).synced} nouvelles conversations synchronisées`);
-                
+
                 socket.emit('chats_updated', {
                     type: 'chats_upsert',
                     synced: (result as any).synced,
@@ -353,12 +359,21 @@ async function initializeWhatsAppSession(socket: any, sessionId: string, method:
         });
     });
 
+    const isRegistered = state.creds.registered;
+
     // Gestion du code de jumelage
-    if (method === 'phone' && phone && !sock.authState.creds.registered) {
+    if (method === 'phone' && phone && !isRegistered) {
+        if (state.creds.registered) {
+            console.log('⚠️ Session déjà enregistrée, skip pairing');
+            return;
+        }
         setTimeout(async () => {
             try {
                 const cleanPhone = phone.replace(/[^0-9]/g, "");
+                console.log('🔑 Tentative pairing code pour:', cleanPhone);
+                console.log('👤 realUserid:', realUserid);
                 const code = await sock.requestPairingCode(cleanPhone);
+                console.log('🔑 Code de jumelage:', code);
 
                 socket.emit('whatsapp_event', {
                     type: 'pairing_code',
@@ -386,7 +401,7 @@ httpServer.listen(PORT, () => {
 // Gestion propre de l'arrêt
 process.on('SIGINT', () => {
     console.log('\n🛑 Arrêt du serveur WebSocket...');
-    
+
     // Fermer toutes les connexions WhatsApp actives
     for (const [sessionId, session] of sessions.entries()) {
         if (session.sock) {
@@ -398,7 +413,7 @@ process.on('SIGINT', () => {
             }
         }
     }
-    
+
     httpServer.close(() => {
         console.log('✅ Serveur WebSocket arrêté proprement');
         process.exit(0);
