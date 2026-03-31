@@ -4,12 +4,12 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  AlertCircle, 
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
   CheckCircle2,
   Loader2,
   MessageCircle,
@@ -21,7 +21,7 @@ import {
   Facebook
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"
-import { LoginCredentials } from "@/services/auth/authService";
+import { authService, LoginCredentials } from "@/services/auth/authService";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -83,7 +83,11 @@ export default function LoginPage() {
 
     try {
       await login(formData);
-      // La redirection est gérée dans le AuthContext
+      const res = await authService.login(formData);
+
+      if (res.token) {
+        document.cookie = `auth-token=${res.token}; path=/`;
+      }
     } catch (err: any) {
       setError(err.message || "Identifiants incorrects. Veuillez réessayer.");
     } finally {
@@ -112,7 +116,7 @@ export default function LoginPage() {
     <>
       {/* SEO Metadata (à ajouter dans un layout ou via next/head) */}
       <div className="min-h-screen bg-gradient-to-br from-background-app via-panel to-background-app flex items-center justify-center p-4 sm:p-6 lg:p-8">
-        
+
         {/* Fond animé */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 -left-48 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse-typing"></div>
@@ -121,10 +125,10 @@ export default function LoginPage() {
 
         <div className="w-full max-w-6xl relative z-10">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-            
+
             {/* Partie Gauche - Branding & Features */}
             <div className="hidden lg:block space-y-8 animate-slide-in-left">
-              
+
               {/* Logo & Titre */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -136,9 +140,9 @@ export default function LoginPage() {
                     <p className="text-text-subtle">WhatsApp Révolutionné</p>
                   </div>
                 </div>
-                
+
                 <p className="text-xl text-text-subtle leading-relaxed">
-                  Connectez-vous pour accéder à des fonctionnalités exclusives et 
+                  Connectez-vous pour accéder à des fonctionnalités exclusives et
                   transformer votre expérience de messagerie.
                 </p>
               </div>
@@ -162,8 +166,8 @@ export default function LoginPage() {
                     description: "Groupes illimités, sondages, appels vidéo 50 participants"
                   }
                 ].map((feature, idx) => (
-                  <div 
-                    key={idx} 
+                  <div
+                    key={idx}
                     className="flex items-start gap-4 p-4 bg-panel rounded-xl border border-border-main hover-lift animate-slide-up"
                     style={{ animationDelay: `${idx * 100}ms` }}
                   >
@@ -196,7 +200,7 @@ export default function LoginPage() {
             {/* Partie Droite - Formulaire de Connexion */}
             <div className="w-full animate-slide-in-right">
               <div className="panel-card p-8 sm:p-10 rounded-2xl shadow-2xl border-2 border-border-main">
-                
+
                 {/* Header du formulaire */}
                 <div className="text-center mb-8">
                   <div className="lg:hidden w-12 h-12 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center mx-auto mb-4">
@@ -227,7 +231,7 @@ export default function LoginPage() {
 
                 {/* Formulaire */}
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  
+
                   {/* Email */}
                   <div className="space-y-2">
                     <label htmlFor="email" className="block text-sm font-semibold text-text-main">
@@ -258,8 +262,8 @@ export default function LoginPage() {
                       <label htmlFor="password" className="block text-sm font-semibold text-text-main">
                         Mot de passe
                       </label>
-                      <Link 
-                        href="/forgot-password" 
+                      <Link
+                        href="/forgot-password"
                         className="text-sm text-primary hover:text-primary-darker transition-colors"
                       >
                         Mot de passe oublié ?
@@ -369,8 +373,8 @@ export default function LoginPage() {
                 {/* Lien vers inscription */}
                 <div className="mt-8 text-center text-sm">
                   <span className="text-text-subtle">Vous n'avez pas de compte ? </span>
-                  <Link 
-                    href="/register" 
+                  <Link
+                    href="/register"
                     className="text-primary hover:text-primary-darker font-semibold transition-colors"
                   >
                     Créer un compte gratuitement
@@ -394,8 +398,8 @@ export default function LoginPage() {
 
               {/* Lien retour accueil (mobile) */}
               <div className="mt-6 text-center lg:hidden">
-                <Link 
-                  href="/" 
+                <Link
+                  href="/"
                   className="text-sm text-text-subtle hover:text-primary transition-colors inline-flex items-center gap-2"
                 >
                   ← Retour à l'accueil

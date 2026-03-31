@@ -38,7 +38,7 @@ export function useUserSync() {
   // Mutation pour synchroniser les données utilisateur
   const syncUserMutation = useMutation({
     mutationFn: async (whatsappUser: any): Promise<SyncUserResponse> => {
-      const response = await fetch('/api/bot/user/sync', {
+      const response = await fetch('/api/bot/start', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -71,7 +71,7 @@ export function useUserSync() {
   const whatsappStatusQuery = useQuery({
     queryKey: ['whatsapp-status'],
     queryFn: async (): Promise<WhatsAppStatusResponse> => {
-      const response = await fetch('/api/bot/user/whatsapp-status');
+      const response = await fetch('/api/whatsapp/status');
       
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération du statut WhatsApp');
@@ -87,7 +87,7 @@ export function useUserSync() {
   // Mutation pour déconnecter WhatsApp
   const disconnectMutation = useMutation({
     mutationFn: async (): Promise<DisconnectResponse> => {
-      const response = await fetch('/api/bot/user/disconnect-whatsapp', {
+      const response = await fetch('/api/whatsapp/disconnect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -115,7 +115,7 @@ export function useUserSync() {
 
   // Fonction pour forcer une resynchronisation
   const forceResync = async (): Promise<SyncUserResponse> => {
-    const response = await fetch('/api/bot/user/resync', {
+    const response = await fetch('/api/bot/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -129,7 +129,7 @@ export function useUserSync() {
 
   // Fonction pour vérifier la santé de la connexion
   const checkConnectionHealth = async (): Promise<any> => {
-    const response = await fetch('/api/bot/user/health');
+    const response = await fetch('/api/whatsapp/status');
     
     if (!response.ok) {
       throw new Error('Erreur lors de la vérification de santé');

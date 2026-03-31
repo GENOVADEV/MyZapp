@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
     if (existingUser) {
       return NextResponse.json(
-        { success: false, message: "Un compte existe déjà avec cet email." },
+        { success: false, message: "Un compte existe déjà avec cet email ou ce numéro de téléphone." },
         { status: 409 } // 409 Conflict
       );
     }

@@ -23,9 +23,16 @@ export async function POST(req: Request) {
     });
 
     // Si l'utilisateur n'existe pas ou s'il s'est inscrit via Google/Apple (pas de mot de passe)
-    if (!user || !user.password) {
+    if (!user) {
       return NextResponse.json(
-        { success: false, message: "Identifiants incorrects." },
+        { success: false, message: "Vous ne disposez pas encore de compte veuillez vous inscrire.", error: "compte non trouvé", status : 404 },
+        { status: 404 } // 404 Not Found
+      );
+    }
+
+    if (!user.password) {
+      return NextResponse.json(
+        { success: false, message: "Identifiants incorrects", error: "email ou mot de passe incorrect", status : 401 },
         { status: 401 } // 401 Unauthorized
       );
     }
@@ -33,7 +40,7 @@ export async function POST(req: Request) {
     // 3. Vérifier si le compte est verrouillé (sécurité anti-brute force)
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       return NextResponse.json(
-        { success: false, message: "Compte temporairement verrouillé. Réessayez plus tard." },
+        { success: false, message: "Compte temporairement verrouillé. Réessayez plus tard.", error: "compte verrouillé" },
         { status: 403 }
       );
     }
@@ -49,7 +56,7 @@ export async function POST(req: Request) {
       });
 
       return NextResponse.json(
-        { success: false, message: "Identifiants incorrects." },
+        { success: false, message : "Trop de tentatives échouées.", error: "Identifiants incorrects." },
         { status: 401 }
       );
     }

@@ -5,10 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBot } from "@/contexts/BotContext";
 import { useContacts } from "@/hooks/useContacts";
 import { useConversations } from "@/hooks/useConversations";
-import { 
-  MessageCircle, 
-  Users, 
-  TrendingUp, 
+import {
+  MessageCircle,
+  Users,
+  TrendingUp,
   Clock,
   Crown,
   Zap,
@@ -21,24 +21,27 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import LoadingSpinner from "../ui/LoadingSpinner";
+import { Card, CardContent } from "../ui/card";
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { 
-    status: botStatus, 
-    whatsappUser, 
-    isConnected, 
+  const {
+    status: botStatus,
+    whatsappUser,
+    isConnected,
     syncProgress,
     isSyncing,
     syncStats,
     refreshContacts,
-    refreshConversations 
+    refreshConversations
   } = useBot();
 
   const { contacts, totalContacts, refreshContacts: refreshContactsHook } = useContacts();
   const { conversations, totalConversations, refreshConversations: refreshConversationsHook } = useConversations();
 
   const userPlan = (user as any)?.plan || "FREE";
+  const [isLoading, setIsLoading] = useState<boolean>(false)
 
   // État local pour les données mockées (temporaire)
   const [stats, setStats] = useState([
@@ -82,7 +85,7 @@ export default function DashboardPage() {
       try {
         await refreshContactsHook();
         await refreshConversationsHook();
-        
+
         // Mettre à jour les stats avec les données réelles
         setStats(prev => prev.map(stat => {
           if (stat.id === 2) {
@@ -100,12 +103,15 @@ export default function DashboardPage() {
 
   // Fonction pour rafraîchir toutes les données
   const handleRefreshAll = async () => {
+    setIsLoading(true)
     try {
       await refreshContactsHook();
       await refreshConversationsHook();
+      setIsLoading(false)
       // Ajouter d'autres rafraîchissements si nécessaire
     } catch (error) {
       console.error('Erreur rafraîchissement données:', error);
+      setIsLoading(false)
     }
   };
 
@@ -153,16 +159,16 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Welcome Section */}
       <div className="bg-gradient-to-br from-primary to-accent p-6 sm:p-8 rounded-2xl text-white animate-slide-up">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-              Bonjour {user?.name?.split(' ')[0] || 'Utilisateur'} ! 👋
+              Bonjour {user?.name?.split(' ')[1] || user?.name?.split(' ')[0] || 'Utilisateur'} ! 👋
             </h1>
             <p className="text-white/90">
-              {isConnected ? 
+              {isConnected ?
                 `WhatsApp connecté • ${totalContacts} contacts • ${totalConversations} conversations` :
                 'Bienvenue sur votre tableau de bord MyZapp'
               }
@@ -178,7 +184,9 @@ export default function DashboardPage() {
               className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
               title="Rafraîchir les données"
             >
-              <RefreshCw className="w-4 h-4" />
+              {isLoading ? (
+                <LoadingSpinner loading={false} fullScreen={false} />
+              ) : (<RefreshCw className="w-4 h-4" />)}
             </button>
           </div>
         </div>
@@ -239,40 +247,44 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {stats.map((stat, idx) => (
-          <div
-            key={stat.id}
-            className="panel-card p-6 rounded-xl hover-lift animate-slide-up"
-            style={{ animationDelay: `${(idx + 2) * 100}ms` }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                {stat.icon}
-              </div>
-              <span className={`
+      <Card className="border-slate-200">
+        <CardContent className="p-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            {stats.map((stat, idx) => (
+              <div
+                key={stat.id}
+                className="panel-card p-6 rounded-xl hover-lift animate-slide-up"
+                style={{ animationDelay: `${(idx + 2) * 100}ms` }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                    {stat.icon}
+                  </div>
+                  <span className={`
                 text-sm font-semibold px-2 py-1 rounded-full
                 ${stat.trend === "up" ? "text-accent bg-accent/10" : "text-error bg-error/10"}
               `}>
-                {stat.change}
-              </span>
-            </div>
-            <h3 className="text-2xl font-bold text-text-main mb-1">{stat.value}</h3>
-            <p className="text-sm text-text-subtle">{stat.label}</p>
+                    {stat.change}
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold text-text-main mb-1">{stat.value}</h3>
+                <p className="text-sm text-text-subtle">{stat.label}</p>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-6">
-        
+
         {/* Recent Conversations */}
         <div className="lg:col-span-2 panel-card rounded-xl overflow-hidden animate-slide-up">
           <div className="p-6 border-b border-border-main flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-bold text-text-main">Conversations récentes</h2>
               <span className="px-2 py-1 bg-primary/10 text-primary rounded-full text-xs font-semibold">
-                {totalConversations} total
+                {totalConversations} total(s)
               </span>
             </div>
             <Link

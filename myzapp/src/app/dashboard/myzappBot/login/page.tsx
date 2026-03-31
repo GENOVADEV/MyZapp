@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
+import {
   QrCode,
   Phone,
   CheckCircle2,
@@ -20,15 +20,17 @@ import {
 } from "lucide-react";
 import { useBot } from "@/contexts/BotContext";
 import Link from "next/link";
+import { error } from "console";
+import { toast } from "sonner";
 
 type ConnectionMethod = "qr" | "phone" | null;
 
 export default function WhatsAppConnectionPage() {
   const router = useRouter();
-  const { 
-    status, 
-    qrCode, 
-    pairingCode, 
+  const {
+    status,
+    qrCode,
+    pairingCode,
     errorMessage,
     connectByQR,
     connectByPhone,
@@ -38,6 +40,7 @@ export default function WhatsAppConnectionPage() {
   const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string>('')
 
   // Si déjà connecté, rediriger
   useEffect(() => {
@@ -51,6 +54,13 @@ export default function WhatsAppConnectionPage() {
     setConnectionMethod("qr");
     setIsSubmitting(true);
     try {
+      setTimeout(() => {
+        if (!qrCode) {
+          setIsSubmitting(false);
+          setError("Délai d'attente dépassé. Vérifiez votre connection internet et réessayer.");
+          toast.error(error);
+        }
+      }, 2000)
       await connectByQR();
     } catch (error) {
       console.error("Erreur QR:", error);
@@ -62,7 +72,7 @@ export default function WhatsAppConnectionPage() {
   // Gestion de la connexion par téléphone
   const handlePhoneConnection = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation basique
     if (!phoneNumber || phoneNumber.length < 8) {
       return;
@@ -70,6 +80,13 @@ export default function WhatsAppConnectionPage() {
 
     setIsSubmitting(true);
     try {
+      setTimeout(() => {
+        if (!qrCode) {
+          setIsSubmitting(false);
+          setError("Délai d'attente dépassé. Vérifiez votre connection internet et réessayer.");
+          toast.error(error);
+        }
+      }, 2000)
       await connectByPhone(phoneNumber);
     } catch (error) {
       console.error("Erreur Phone:", error);
@@ -96,10 +113,10 @@ export default function WhatsAppConnectionPage() {
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
       <div className="w-full max-w-6xl">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          
+
           {/* Partie Gauche - Informations */}
           <div className="hidden lg:block space-y-8 animate-slide-in-left">
-            
+
             {/* Header */}
             <div>
               <div className="flex items-center gap-3 mb-4">
@@ -122,7 +139,7 @@ export default function WhatsAppConnectionPage() {
                 <Zap className="w-5 h-5 text-accent" />
                 Pourquoi connecter WhatsApp ?
               </h3>
-              
+
               {[
                 {
                   icon: <Shield className="w-5 h-5" />,
@@ -153,8 +170,8 @@ export default function WhatsAppConnectionPage() {
                   bg: "bg-purple-500/10"
                 }
               ].map((benefit, idx) => (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   className="flex items-start gap-4 p-4 bg-panel rounded-xl border border-border-main hover-lift animate-slide-up"
                   style={{ animationDelay: `${idx * 100}ms` }}
                 >
@@ -186,7 +203,7 @@ export default function WhatsAppConnectionPage() {
           {/* Partie Droite - Interface de Connexion */}
           <div className="w-full animate-slide-in-right">
             <div className="panel-card rounded-2xl shadow-2xl border-2 border-border-main overflow-hidden">
-              
+
               {/* Header de la carte */}
               <div className="bg-gradient-to-br from-primary/5 to-accent/5 p-6 border-b border-border-main">
                 <div className="flex items-center justify-between mb-2">
@@ -213,14 +230,14 @@ export default function WhatsAppConnectionPage() {
               </div>
 
               <div className="p-8">
-                
+
                 {/* État : Erreur */}
-                {status === "error" && errorMessage && (
+                {status === "error" && errorMessage && error && (
                   <div className="mb-6 p-4 bg-error/10 border border-error/30 rounded-lg flex items-start gap-3 animate-shake">
                     <AlertCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm text-error font-semibold mb-1">Erreur de connexion</p>
-                      <p className="text-sm text-error">{errorMessage}</p>
+                      <p className="text-sm text-error">{errorMessage || error}</p>
                     </div>
                     <button
                       onClick={handleReset}
@@ -304,13 +321,13 @@ export default function WhatsAppConnectionPage() {
                     {qrCode ? (
                       <div className="space-y-4 animate-scale-in">
                         <div className="bg-white p-6 rounded-xl border-2 border-border-main mx-auto w-fit">
-                          <img 
-                            src={qrCode} 
-                            alt="QR Code WhatsApp" 
+                          <img
+                            src={qrCode}
+                            alt="QR Code WhatsApp"
                             className="w-64 h-64"
                           />
                         </div>
-                        
+
                         {/* Instructions */}
                         <div className="bg-panel-hover p-4 rounded-lg space-y-3">
                           <p className="font-semibold text-text-main text-sm">Comment scanner :</p>
@@ -344,7 +361,7 @@ export default function WhatsAppConnectionPage() {
                           Générer un nouveau QR Code
                         </button>
                       </div>
-                    ) : status === "connecting" ? (
+                    ) : status === "connecting" || !isSubmitting ? (
                       <div className="text-center py-12 animate-fade-in">
                         <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
                         <p className="text-text-main font-semibold">Génération du QR Code...</p>
@@ -386,7 +403,7 @@ export default function WhatsAppConnectionPage() {
                       disabled={isSubmitting || status === "connecting" || phoneNumber.length < 8}
                       className="btn-primary w-full py-4 text-base font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {(isSubmitting || status === "connecting") ? (
+                      {(!isSubmitting || status === "connecting") ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
                           Génération du code...

@@ -86,7 +86,7 @@ export function useContacts(filters?: ContactFilters) {
       if (filters?.blocked !== undefined) params.append('blocked', filters.blocked.toString());
       if (filters?.search) params.append('search', filters.search);
 
-      const response = await fetch(`/api/contacts?${params}`);
+      const response = await fetch(`/api/data/contacts?${params}`);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -102,7 +102,7 @@ export function useContacts(filters?: ContactFilters) {
   // Mutation pour synchroniser les contacts WhatsApp
   const syncContactsMutation = useMutation({
     mutationFn: async (contacts: any[]): Promise<SyncContactsResponse> => {
-      const response = await fetch('/api/contacts/sync', {
+      const response = await fetch('/api/data/contacts/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contacts })
@@ -128,7 +128,7 @@ export function useContacts(filters?: ContactFilters) {
   // Mutation pour basculer le statut favori
   const toggleFavoriteMutation = useMutation({
     mutationFn: async (contactId: string): Promise<Contact> => {
-      const response = await fetch(`/api/contacts/${contactId}/favorite`, {
+      const response = await fetch(`/api/data/contacts/${contactId}/favorite`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -160,7 +160,7 @@ export function useContacts(filters?: ContactFilters) {
   // Mutation pour basculer le blocage
   const toggleBlockMutation = useMutation({
     mutationFn: async (contactId: string): Promise<Contact> => {
-      const response = await fetch(`/api/contacts/${contactId}/block`, {
+      const response = await fetch(`/api/data/contacts/${contactId}/block`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -209,7 +209,7 @@ export function useContacts(filters?: ContactFilters) {
       console.log('🔄 Synchronisation manuelle avec WhatsApp...');
       
       // Appeler une API qui déclenche une resynchronisation
-      const response = await fetch('/api/contacts/sync-whatsapp', {
+      const response = await fetch('/api/data/contacts/sync-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -235,7 +235,7 @@ export function useContacts(filters?: ContactFilters) {
   const searchContacts = useCallback(async (query: string, searchPage: number = 1): Promise<ContactsResponse> => {
     try {
       const response = await fetch(
-        `/api/contacts/search?q=${encodeURIComponent(query)}&page=${searchPage}&limit=${limit}`
+        `/api/data/contacts/search?q=${encodeURIComponent(query)}&page=${searchPage}&limit=${limit}`
       );
       
       if (!response.ok) {
@@ -252,7 +252,7 @@ export function useContacts(filters?: ContactFilters) {
   // Obtenir les statistiques des contacts
   const getStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/contacts/stats');
+      const response = await fetch('/api/data/contacts/stats');
       
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des statistiques');
@@ -294,7 +294,7 @@ export function useContacts(filters?: ContactFilters) {
         if (combinedFilters?.blocked !== undefined) params.append('blocked', combinedFilters.blocked.toString());
         if (combinedFilters?.search) params.append('search', combinedFilters.search);
 
-        const response = await fetch(`/api/contacts?${params}`);
+        const response = await fetch(`/api/data/contacts?${params}`);
         
         if (!response.ok) {
           throw new Error('Erreur lors du chargement des contacts');
@@ -362,7 +362,7 @@ export function useContact(contactId: string) {
   } = useQuery({
     queryKey: ['contact', contactId],
     queryFn: async (): Promise<Contact> => {
-      const response = await fetch(`/api/contacts/${contactId}`);
+      const response = await fetch(`/api/data/contacts/${contactId}`);
       
       if (!response.ok) {
         throw new Error('Contact non trouvé');
