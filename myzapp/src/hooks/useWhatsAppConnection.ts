@@ -1,7 +1,6 @@
 // src/hooks/useWhatsAppConnection.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { whatsappService } from '@/services/MyZapp/whatsappService';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UseWhatsAppConnectionProps {
@@ -14,7 +13,10 @@ interface UseWhatsAppConnectionProps {
 
 type Status = 'idle' | 'connecting' | 'qr_pending' | 'connected' | 'error';
 
-const STORAGE_KEY = 'wa-session-id';
+// const STORAGE_KEY = 'wa-session-id';
+
+// Petit utilitaire pour générer un ID de session côté client
+const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 
 export function useWhatsAppConnection(props?: UseWhatsAppConnectionProps) {
     const [socket, setSocket] = useState<Socket | null>(null);
@@ -31,42 +33,32 @@ export function useWhatsAppConnection(props?: UseWhatsAppConnectionProps) {
     const userId = authUser?.id;
 
     // ====================================================================
-    // CONFIG SOCKET
+    // ATTACH EVENTS (Centralisé)
     // ====================================================================
-    const getSocketUrl = () => {
-        return process.env.NODE_ENV === 'production'
-            ? 'wss://ton-domaine.com'
-            : 'http://localhost:3001';
-    };
-
-    // ====================================================================
-    // ATTACH EVENTS (centralisé proprement)
-    // ====================================================================
-    const attachSocketEvents = useCallback((sock: Socket, currentSessionId: string) => {
+    const attachSocketEvents = useCallback((sock: Socket, currentSessionId: string, initData?: { method: 'qr' | 'phone', phone?: string }) => {
 
         sock.on('connect', () => {
-            console.log('✅ WebSocket connecté');
+            console.log('✅ WebSocket connecté au serveur unifié');
 
+            // 1. Demande d'authentification dès la connexion
             sock.emit('authenticate', {
                 sessionId: currentSessionId,
                 realUserid: userId
             });
 
-            // 🔥 demander état réel
+            // 2. Demande l'état réel au cas où la session tourne déjà
             sock.emit('get_session_status', { sessionId: currentSessionId });
         });
 
         sock.on('session_status', (data) => {
             console.log('📊 Status serveur:', data);
-
             switch (data.status) {
                 case 'connected':
                     setStatus('connected');
                     break;
                 case 'qr_pending':
-                    setStatus('qr_pending');
-                    break;
                 case 'reconnecting':
+                case 'initializing':
                     setStatus('connecting');
                     break;
                 default:
@@ -74,17 +66,27 @@ export function useWhatsAppConnection(props?: UseWhatsAppConnectionProps) {
             }
         });
 
-        sock.on('authenticated', () => {
-            console.log('🔐 Auth OK');
+        sock.on('authenticated', (data) => {
+            console.log('🔐 Auth OK pour la session:', data.sessionId);
+
+            // Si on a passé initData (ex: on vient de cliquer sur "Se connecter"), on lance l'init
+            if (initData && !data.alreadyConnected) {
+                sock.emit('init_whatsapp', {
+                    sessionId: currentSessionId,
+                    method: initData.method,
+                    phone: initData.phone?.replace(/[^0-9]/g, ''),
+                    userId: userId
+                });
+            }
         });
 
         sock.on('whatsapp_event', (event) => {
-            console.log('📡 Event:', event.type);
+            console.log('📡 Event WhatsApp:', event.type);
 
             switch (event.type) {
                 case 'qr':
                     setQrCode(event.data.qr);
-                    setStatus('qr_pending');
+                    setStatus('connecting');
                     props?.onQrReceived?.(event.data.qr);
                     break;
 
@@ -109,131 +111,134 @@ export function useWhatsAppConnection(props?: UseWhatsAppConnectionProps) {
                     break;
 
                 case 'disconnected':
+                case 'logged_out':
                     setStatus('idle');
                     setWhatsappUser(null);
-                    props?.onDisconnected?.(event.data.reason);
+                    props?.onDisconnected?.(event.data.reason || 'Déconnecté');
+                    // On peut nettoyer le localStorage si c'est un logout volontaire
+                    if (event.type === 'logged_out') {
+                        localStorage.removeItem(`wa-session-id-${userId}`);
+                        setSessionId(null);
+                    }
                     break;
             }
         });
 
         sock.on('disconnect', (reason) => {
             console.log('🔌 Socket disconnect:', reason);
-            setStatus('idle');
+            // On ne change pas le status WhatsApp ici, car c'est juste le réseau web qui coupe
         });
 
         sock.on('connect_error', (err) => {
             console.error('❌ Socket error:', err.message);
             setStatus('error');
-            setError(err.message);
-            props?.onError?.(err.message);
+            setError("Impossible de joindre le serveur temps réel.");
         });
 
         sock.on('reconnect', () => {
-            console.log('🔁 Reconnecté');
-
-            sock.emit('authenticate', {
-                sessionId: currentSessionId,
-                realUserid: userId
-            });
+            console.log('🔁 Reconnecté au serveur web');
+            sock.emit('authenticate', { sessionId: currentSessionId, realUserid: userId });
         });
 
     }, [props, userId]);
 
     // ====================================================================
-    // CREATE SESSION
+    // HELPER DE CONNEXION GLOBALE
     // ====================================================================
-    const createSession = useCallback(async (method: 'qr' | 'phone', phone?: string) => {
-        try {
-            setStatus('connecting');
-            setError(null);
-            setQrCode(null);
-            setPairingCode(null);
-            setWhatsappUser(null);
-
-            const session = await whatsappService.createSession();
-            const newSessionId = session.sessionId;
-
-            setSessionId(newSessionId);
-            localStorage.setItem(STORAGE_KEY, newSessionId);
-
-            const sock = io(getSocketUrl(), {
-                auth: {
-                    token: localStorage.getItem('auth-token'),
-                    userId
-                },
-                transports: ['websocket'],
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000
-            });
-
-            attachSocketEvents(sock, newSessionId);
-
-            sock.on('authenticated', () => {
-                sock.emit('init_whatsapp', {
-                    sessionId: newSessionId,
-                    method,
-                    phone: phone?.replace(/[^0-9]/g, ''),
-                    userId
-                });
-            });
-
-            socketRef.current = sock;
-            setSocket(sock);
-
-        } catch (err: any) {
-            setStatus('error');
-            setError(err.message);
-        }
-    }, [attachSocketEvents, userId]);
-
-    // ====================================================================
-    // RESTORE SESSION (🔥 le plus important)
-    // ====================================================================
-    const restoreSession = useCallback(() => {
-        const savedSessionId = localStorage.getItem(STORAGE_KEY);
-        if (!savedSessionId || !userId) return;
-
-        console.log('♻️ Restauration session:', savedSessionId);
-
-        const sock = io(getSocketUrl(), {
-            auth: {
-                token: localStorage.getItem('auth-token'),
-                userId
-            },
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-        });
-
-        attachSocketEvents(sock, savedSessionId);
-
-        socketRef.current = sock;
-        setSocket(sock);
-        setSessionId(savedSessionId);
-
-    }, [attachSocketEvents, userId]);
-
-    // ====================================================================
-    // DISCONNECT
-    // ====================================================================
-    const disconnect = useCallback(() => {
+    const connectSocket = useCallback((targetSessionId: string, initData?: { method: 'qr' | 'phone', phone?: string }) => {
         if (socketRef.current) {
             socketRef.current.disconnect();
         }
 
-        if (sessionId) {
-            whatsappService.disconnectSession(sessionId).catch(console.error);
+        // On ne passe pas d'URL : Socket.io se connecte automatiquement au domaine actuel (ex: localhost:3000)
+        const sock = io(undefined, {
+            withCredentials: true,
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000
+        });
+
+        attachSocketEvents(sock, targetSessionId, initData);
+
+        socketRef.current = sock;
+        setSocket(sock);
+    }, [attachSocketEvents]);
+
+    // ====================================================================
+    // CREATE SESSION (Bouton "Se connecter")
+    // ====================================================================
+    const createSession = useCallback((method: 'qr' | 'phone', phone?: string) => {
+        if (!userId) {
+            setError("Utilisateur non authentifié.");
+            return;
         }
 
-        localStorage.removeItem(STORAGE_KEY);
+        setStatus('connecting');
+        setError(null);
+        setQrCode(null);
+        setPairingCode(null);
 
+        // On génère un nouvel ID ou on réutilise l'existant
+        const userStorageKey = `wa-session-id-${userId}`;
+        const newSessionId = localStorage.getItem(userStorageKey) || generateId();
+        setSessionId(newSessionId);
+        localStorage.setItem(userStorageKey, newSessionId);
+
+        // On connecte le socket et on lui passe les infos d'initialisation
+        connectSocket(newSessionId, { method, phone });
+
+    }, [userId, connectSocket]);
+
+    // ====================================================================
+    // RESTORE SESSION (Au chargement de la page)
+    // ====================================================================
+    const restoreSession = useCallback(() => {
+        if (!userId) return;
+        const userStorageKey = `wa-session-id-${userId}`;
+        const savedSessionId = localStorage.getItem(userStorageKey);
+        if (!savedSessionId || !userId) return;
+
+        console.log('♻️ Tentative de restauration session:', savedSessionId);
+        setSessionId(savedSessionId);
+
+        // On se connecte sans paramètres d'initialisation pour juste récupérer l'état
+        connectSocket(savedSessionId);
+
+    }, [userId, connectSocket]);
+
+    // ====================================================================
+    // DISCONNECT (Bouton "Déconnecter")
+    // ====================================================================
+    const disconnect = useCallback(async () => {
+        if (sessionId && socketRef.current) {
+            // On ordonne au serveur de déconnecter WhatsApp officiellement
+            socketRef.current.emit('logout_whatsapp', { sessionId });
+        }
+
+        // On informe le backend Next.js de nettoyer la base de données (si tu gardes l'API)
+        try {
+            await fetch('/api/whatsapp/disconnect', { method: 'POST' });
+        } catch (e) {
+            console.error("Erreur appel API deconnexion:", e);
+        }
+
+        if (socketRef.current) {
+            socketRef.current.disconnect();
+        }
+
+        if (userId) {
+            localStorage.removeItem(`wa-session-id-${userId}`);
+        }
+
+        localStorage.removeItem('wa-session-id');
         setSocket(null);
         setSessionId(null);
         setStatus('idle');
         setQrCode(null);
         setPairingCode(null);
         setWhatsappUser(null);
+        socketRef.current = null;
 
     }, [sessionId]);
 
@@ -251,7 +256,9 @@ export function useWhatsAppConnection(props?: UseWhatsAppConnectionProps) {
     // ====================================================================
     useEffect(() => {
         return () => {
-            socketRef.current?.disconnect();
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+            }
         };
     }, []);
 

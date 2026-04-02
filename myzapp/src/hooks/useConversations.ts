@@ -307,9 +307,10 @@ export function useConversations(filters?: ConversationFilters, page: number = 1
     
     // Statistiques pratiques
     totalConversations: conversationsData?.pagination?.total || 0,
-    unreadCount: conversationsData?.conversations.reduce((sum, conv) => sum + conv.unreadCount, 0) || 0,
-    pinnedCount: conversationsData?.conversations.filter(conv => conv.isPinned).length || 0,
-    archivedCount: conversationsData?.conversations.filter(conv => conv.isArchived).length || 0,
+    
+    unreadCount: (conversationsData?.conversations || []).reduce((sum, conv) => sum + (conv.unreadCount || 0), 0),
+    pinnedCount: (conversationsData?.conversations || []).filter(conv => conv.isPinned).length,
+    archivedCount: (conversationsData?.conversations || []).filter(conv => conv.isArchived).length,
   };
 }
 

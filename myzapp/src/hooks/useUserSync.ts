@@ -35,38 +35,6 @@ interface DisconnectResponse {
 export function useUserSync() {
   const queryClient = useQueryClient();
 
-  // Mutation pour synchroniser les données utilisateur
-  const syncUserMutation = useMutation({
-    mutationFn: async (whatsappUser: any): Promise<SyncUserResponse> => {
-      const response = await fetch('/api/bot/start', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ user: whatsappUser })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erreur lors de la synchronisation');
-      }
-      
-      return await response.json();
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        // Invalider les queries liées à l'utilisateur
-        queryClient.invalidateQueries({ queryKey: ['user'] });
-        queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
-        
-        console.log('✅ Synchronisation utilisateur réussie');
-      }
-    },
-    onError: (error) => {
-      console.error('❌ Erreur synchronisation utilisateur:', error);
-    }
-  });
-
   // Query pour le statut WhatsApp
   const whatsappStatusQuery = useQuery({
     queryKey: ['whatsapp-status'],
@@ -139,10 +107,6 @@ export function useUserSync() {
   };
 
   return {
-    // Synchronisation
-    syncUserData: syncUserMutation.mutateAsync,
-    syncUserLoading: syncUserMutation.isPending,
-    syncUserError: syncUserMutation.error,
     
     // Statut
     whatsappStatus: whatsappStatusQuery.data,

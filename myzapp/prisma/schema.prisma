@@ -61,8 +61,10 @@ model User {
   calls               Call[]             @relation("CallParticipants")
 
   whatsappConnected Boolean @default(false)
-  whatsappId String?
   lastWhatsappSync DateTime?
+  whatsappStatus String @default("offline")
+  whatsappId  String? @unique
+  whatsappAbout     String?
 
   @@index([email])
   @@index([username])
@@ -219,6 +221,8 @@ model Message {
   sender             User          @relation(fields: [senderId], references: [id])
   voiceNote          VoiceNote?    @relation(fields: [voiceNoteId], references: [id])
   reactions          Reaction[]
+  whatsappMessageId String @unique
+  whatsappTimestamp DateTime
 
   @@index([conversationId])
   @@index([senderId])

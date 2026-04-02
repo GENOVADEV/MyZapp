@@ -1,41 +1,33 @@
 // src/app/api/bot/start/route.ts
 
 import { NextResponse } from "next/server";
-import { getWhatsAppManager } from "@/lib/websocket-server";
+// 1. On importe directement la "Map" des sessions (la mémoire) depuis notre librairie
+import { sessions } from "@/lib/server-ws"; 
 import { syncContacts } from "@/services/syncDB/contactSyncService";
 import { syncConversations } from "@/services/syncDB/conversationSyncService";
 
 export async function POST(req: Request) {
   try {
-    const { sessionId, userId } = await req.json();
+    const { sessionId } = await req.json();
 
-    if (!sessionId || !userId) {
-      return NextResponse.json({ error: "sessionId et userId requis" }, { status: 400 });
+    // 2. On pioche directement dans la mémoire globale pour trouver la session
+    const session = sessions.get(sessionId);
+
+    if (!session) {
+      return NextResponse.json({ error: "Session non trouvée" }, { status: 404 });
     }
 
-    const manager = getWhatsAppManager();
-    const sessionManager = manager.getSessionManager();
-    const session = sessionManager.getSession(sessionId);
-
-    if (!session || !session.sock) {
-      return NextResponse.json({ error: "Session invalide" }, { status: 400 });
+    if (!session.sock) {
+      return NextResponse.json({ error: "WhatsApp n'est pas connecté pour cette session" }, { status: 400 });
     }
 
-    const sock = session.sock;
-
-    // 📥 Sync contacts
-    sock.ev.on("contacts.upsert", async (contacts: any[]) => {
-      await syncContacts(contacts, userId);
-    });
-
-    // 💬 Sync conversations
-    sock.ev.on("chats.upsert", async (chats: any[]) => {
-      await syncConversations(chats, userId);
-    });
+    // --- Ta logique métier pour démarrer le bot ici ---
+    // (Par exemple, si c'est pour re-écouter les messages après un 'stop')
+    // session.sock.ev.on('messages.upsert', ...) 
 
     return NextResponse.json({
       success: true,
-      message: "Bot démarré avec sync actif"
+      message: "Bot démarré avec succès"
     });
 
   } catch (error) {

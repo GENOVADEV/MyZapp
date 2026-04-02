@@ -1,17 +1,46 @@
 // src/app/api/whatsapp/status/route.ts
 import { NextResponse } from "next/server";
-import { getUserFromToken } from "@/lib/auth";
-import { UserSyncManager } from "@/services/syncDB/userSyncService";
+import { getUserIdFromToken } from "@/lib/auth";
+import { getWhatsAppStatus } from "@/services/syncDB/userSyncService";
+import { getSessionIdForUser, sessions } from "@/lib/server-ws"; // On importe la mémoire en temps réel
 
 export async function GET() {
-  const userId = await getUserFromToken();
+  try {
+    const userId = await getUserIdFromToken();
 
-  if (!userId) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+    }
+
+    // 1. Récupérer l'état persistant depuis la base de données
+    const dbStatus = await getWhatsAppStatus(userId);
+
+    // 2. Récupérer l'état exact en temps réel depuis la mémoire du serveur (RAM)
+    const sessionId = getSessionIdForUser(userId);
+    let realtimeStatus = 'disconnected';
+    let isOnline = false;
+
+    if (sessionId) {
+      const session = sessions.get(sessionId);
+      if (session) {
+        realtimeStatus = session.status;
+        isOnline = session.status === 'connected';
+      }
+    }
+
+    // 3. Fusionner les deux informations pour le frontend
+    const enhancedStatus = {
+      ...dbStatus, // Contient: connected, whatsappId, lastSync, phone, activeDevice...
+      realtimeStatus: realtimeStatus, // ex: 'reconnecting', 'qr_pending', 'connected'
+      isOnline: isOnline,
+      // Si la RAM dit qu'on n'est pas connecté mais que la DB oui, la RAM a toujours raison pour le "status" actuel
+      status: isOnline ? 'connected' : (realtimeStatus !== 'disconnected' ? realtimeStatus : 'disconnected')
+    };
+
+    return NextResponse.json(enhancedStatus);
+
+  } catch (error) {
+    console.error("❌ Erreur API fetching WhatsApp status:", error);
+    return NextResponse.json({ error: "Erreur serveur lors de la récupération du statut" }, { status: 500 });
   }
-
-  const status = await UserSyncManager.getWhatsAppStatus(userId);
-  console.log("status from API route:", status);
-
-  return NextResponse.json(status);
 }

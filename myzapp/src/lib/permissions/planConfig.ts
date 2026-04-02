@@ -21,6 +21,7 @@ export interface PlanLimits {
   maxTeamMembers: number;
   maxGroupMembers: number;
   canUseAIModeration: boolean;
+  MAX_SESSIONS_PER_USER: number; // Limite de sessions WhatsApp actives par utilisateur 
   
   // Monétisation
   adsEnabled: boolean; // Doit regarder des pubs pour débloquer des actions "Pro"
@@ -42,6 +43,7 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
     maxGroupMembers: 50,
     canUseAIModeration: false,
     adsEnabled: true, // Le mode gratuit a des pubs/récompenses
+    MAX_SESSIONS_PER_USER:1,
   },
   YOUNG: {
     maxScheduledMessagesPerDay: 5,
@@ -57,6 +59,7 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
     maxGroupMembers: 100,
     canUseAIModeration: false,
     adsEnabled: false,
+    MAX_SESSIONS_PER_USER:5,
   },
   AGENT: {
     maxScheduledMessagesPerDay: Infinity, // Illimité
@@ -72,6 +75,7 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
     maxGroupMembers: 256,
     canUseAIModeration: false,
     adsEnabled: false,
+    MAX_SESSIONS_PER_USER: 17,
   },
   BUSINESS: {
     maxScheduledMessagesPerDay: Infinity,
@@ -87,6 +91,7 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
     maxGroupMembers: 500,
     canUseAIModeration: true,
     adsEnabled: false,
+    MAX_SESSIONS_PER_USER: 50,
   },
   PRO: {
     maxScheduledMessagesPerDay: Infinity,
@@ -102,6 +107,7 @@ export const PLAN_LIMITS: Record<string, PlanLimits> = {
     maxGroupMembers: Infinity,
     canUseAIModeration: true,
     adsEnabled: false,
+    MAX_SESSIONS_PER_USER: Infinity,
   }
 };
 

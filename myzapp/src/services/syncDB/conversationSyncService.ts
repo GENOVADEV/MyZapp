@@ -1,563 +1,304 @@
 // src/services/syncDB/conversationSyncService.ts
 import { prisma } from '@/lib/prisma';
+import type { Chat } from '@whiskeysockets/baileys';
 
-// Types pour les conversations WhatsApp (basés sur Baileys)
 interface WhatsAppChat {
-  id: string; // Format: 1234567890@s.whatsapp.net ou 1234567890-123456@g.us
-  name?: string;
+  id: string;
+  conversationTimestamp?: number;
   unreadCount?: number;
-  lastMessageReceivedTime?: number;
-  lastMessageSentTime?: number;
-  isGroup?: boolean;
-  isReadOnly?: boolean;
-  isAnnounceGrp?: boolean;
-  archive?: boolean;
-  muteExpiration?: number;
-  tcToken?: Buffer;
-  tcTokenTimestamp?: number;
-  pin?: number;
-  labels?: string[];
+  name?: string;
+  notSpam?: boolean;
+  archived?: boolean;
+  pinned?: number;
+  muteEndTime?: number;
   ephemeralExpiration?: number;
   ephemeralSettingTimestamp?: number;
-  conversationTimestamp?: number;
 }
 
-interface SyncResult {
+interface SyncConversationsResult {
   success: boolean;
   synced: number;
   errors: string[];
   stats: {
     total: number;
-    new: number;
+    created: number;
     updated: number;
     skipped: number;
-    groups: number;
-    individuals: number;
+    failed: number;
   };
 }
 
 /**
- * Synchronise les conversations WhatsApp avec la base de données
+ * Synchronise les conversations WhatsApp avec la DB
  */
 export async function syncConversations(
-  whatsappChats: WhatsAppChat[], 
+  whatsappChats: WhatsAppChat[],
   userId: string
-): Promise<SyncResult> {
-  const result: SyncResult = {
-    success: true,
-    synced: 0,
-    errors: [],
-    stats: { total: 0, new: 0, updated: 0, skipped: 0, groups: 0, individuals: 0 }
+): Promise<SyncConversationsResult> {
+  const errors: string[] = [];
+  const stats = {
+    total: whatsappChats.length,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
   };
 
-  try {
-    result.stats.total = whatsappChats.length;
+  console.log(`💬 Début synchronisation de ${stats.total} conversations pour user ${userId}`);
 
-    for (const whatsappChat of whatsappChats) {
-      try {
-        const syncResult = await syncSingleConversation(whatsappChat, userId);
-        
-        if (syncResult.status === 'created') result.stats.new++;
-        if (syncResult.status === 'updated') result.stats.updated++;
-        if (syncResult.status === 'skipped') result.stats.skipped++;
-        
-        if (syncResult.conversation?.type === 'GROUP') result.stats.groups++;
-        if (syncResult.conversation?.type === 'DIRECT') result.stats.individuals++;
-        
-        result.synced++;
-      } catch (error) {
-        result.errors.push(`Conversation ${whatsappChat.id}: ${(error as Error).message}`);
+  for (const waChat of whatsappChats) {
+    try {
+      // Déterminer le type de conversation
+      const isGroup = waChat.id.includes('@g.us');
+      const isSelf = waChat.id === 'status@broadcast';
+
+      if (isSelf) {
+        stats.skipped++;
+        continue;
       }
-    }
 
-    // Mettre à jour le timestamp de dernière synchronisation
-    await prisma.user.update({
-      where: { id: userId },
-      data: { lastSyncAt: new Date() }
-    });
+      const conversationType = isGroup ? 'GROUP' : 'DIRECT';
 
-  } catch (error) {
-    result.success = false;
-    result.errors.push(`Erreur générale: ${(error as Error).message}`);
-  }
+      // Extraire l'ID pour la recherche de contact/groupe
+      const whatsappId = waChat.id;
+      const phone = isGroup ? null : whatsappId.split('@')[0].split(':')[0];
 
-  return result;
-}
+      // Chercher le contact ou groupe correspondant
+      let contactId: string | null = null;
+      let groupId: string | null = null;
 
-/**
- * Synchronise une seule conversation
- */
-async function syncSingleConversation(whatsappChat: WhatsAppChat, userId: string) {
-  // Valider l'ID de conversation
-  if (!whatsappChat.id) {
-    return { status: 'skipped' as const, reason: 'ID manquant' };
-  }
-
-  // Déterminer le type de conversation
-  const isGroup = whatsappChat.id.endsWith('@g.us');
-  const conversationType = isGroup ? 'GROUP' : 'DIRECT' as const;
-
-  // Déterminer le nom de la conversation
-  const conversationName = determineConversationName(whatsappChat, conversationType);
-
-  // Préparer les données pour la création/mise à jour
-  const conversationData = {
-    whatsappId: whatsappChat.id,
-    type: conversationType as any,
-    name: conversationName,
-    unreadCount: whatsappChat.unreadCount || 0,
-    lastMessageAt: whatsappChat.lastMessageReceivedTime ? 
-      new Date(whatsappChat.lastMessageReceivedTime) : null,
-    isArchived: whatsappChat.archive || false,
-    isMuted: whatsappChat.muteExpiration ? whatsappChat.muteExpiration > Date.now() : false,
-    mutedUntil: whatsappChat.muteExpiration ? new Date(whatsappChat.muteExpiration) : null,
-    isPinned: !!whatsappChat.pin,
-    ephemeralEnabled: !!whatsappChat.ephemeralExpiration,
-    ephemeralDuration: whatsappChat.ephemeralExpiration || null,
-    updatedAt: new Date()
-  };
-
-  // Upsert de la conversation
-  const conversation = await prisma.conversation.upsert({
-    where: {
-      userId_whatsappId: {
-        userId,
-        whatsappId: whatsappChat.id
+      if (isGroup) {
+        // Chercher ou créer le groupe
+        const groupResult = await syncGroupFromChat(waChat, userId);
+        groupId = groupResult.groupId;
+      } else if (phone) {
+        // Chercher le contact
+        const contact = await prisma.contact.findFirst({
+          where: { userId, phone },
+          select: { id: true, name: true },
+        });
+        contactId = contact?.id || null;
       }
-    },
-    update: conversationData,
-    create: {
-      userId,
-      ...conversationData,
-      createdAt: new Date()
-    },
-    include: {
-      contact: {
-        include: {
-          contactUser: {
-            select: {
-              id: true,
-              name: true,
-              image: true
-            }
-          }
-        }
-      },
-      group: {
-        include: {
-          owner: {
-            select: {
-              id: true,
-              name: true,
-              image: true
-            }
-          },
-          members: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  image: true
-                }
-              }
-            }
-          }
-        }
-      },
-      messages: {
-        take: 1,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          content: true,
-          type: true,
-          createdAt: true
-        }
-      }
-    }
-  });
 
-  // Pour les conversations directes, associer le contact si possible
-  if (conversationType === 'DIRECT') {
-    await associateConversationWithContact(conversation, userId);
-  }
-
-  // Pour les groupes, créer/mettre à jour l'entrée Group
-  if (conversationType === 'GROUP') {
-    await syncGroupData(whatsappChat, conversation, userId);
-  }
-
-  return { 
-    status: conversation.createdAt.getTime() === conversation.updatedAt.getTime() ? 'created' : 'updated',
-    conversation 
-  };
-}
-
-/**
- * Détermine le nom à utiliser pour la conversation
- */
-function determineConversationName(chat: WhatsAppChat, type: 'GROUP' | 'DIRECT'): string {
-  if (chat.name) return chat.name;
-  
-  if (type === 'DIRECT') {
-    // Extraire le numéro de téléphone de l'ID
-    const phoneMatch = chat.id.match(/^(\d+)@/);
-    return phoneMatch ? `+${phoneMatch[1]}` : 'Contact sans nom';
-  }
-  
-  return 'Groupe sans nom';
-}
-
-/**
- * Associe une conversation directe avec un contact existant
- */
-async function associateConversationWithContact(conversation: any, userId: string) {
-  try {
-    // Extraire le numéro de téléphone de l'ID WhatsApp
-    const phoneMatch = conversation.whatsappId.match(/^(\d+)@/);
-    if (!phoneMatch) return;
-
-    const phone = phoneMatch[1];
-    
-    // Chercher le contact correspondant
-    const contact = await prisma.contact.findFirst({
-      where: {
-        userId,
-        phone
-      }
-    });
-
-    if (contact) {
-      // Associer la conversation au contact
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { contactId: contact.id }
+      // Vérifier si la conversation existe déjà
+      const existingConversation = await prisma.conversation.findFirst({
+        where: {
+          userId,
+          whatsappId,
+        },
       });
+
+      // Préparer les données de conversation
+      const conversationData: any = {
+        userId,
+        type: conversationType,
+        whatsappId,
+        contactId,
+        groupId,
+        name: waChat.name || undefined,
+        isPinned: waChat.pinned ? waChat.pinned > 0 : false,
+        isMuted: waChat.muteEndTime ? waChat.muteEndTime > Date.now() : false,
+        mutedUntil: waChat.muteEndTime
+          ? new Date(waChat.muteEndTime)
+          : undefined,
+        isArchived: waChat.archived || false,
+        unreadCount: waChat.unreadCount || 0,
+        lastMessageAt: waChat.conversationTimestamp
+          ? new Date(waChat.conversationTimestamp * 1000)
+          : undefined,
+        ephemeralEnabled: !!waChat.ephemeralExpiration,
+        ephemeralDuration: waChat.ephemeralExpiration || undefined,
+        updatedAt: new Date(),
+      };
+
+      if (existingConversation) {
+        // Mettre à jour la conversation existante
+        await prisma.conversation.update({
+          where: { id: existingConversation.id },
+          data: conversationData,
+        });
+        stats.updated++;
+      } else {
+        // Créer une nouvelle conversation
+        await prisma.conversation.create({
+          data: conversationData,
+        });
+        stats.created++;
+      }
+    } catch (error) {
+      console.error(`❌ Erreur sync conversation ${waChat.id}:`, error);
+      errors.push(`Conversation ${waChat.id}: ${error}`);
+      stats.failed++;
     }
-  } catch (error) {
-    console.error('Erreur association conversation-contact:', error);
-  }
-}
-
-/**
- * Synchronise les données de groupe
- */
-async function syncGroupData(whatsappChat: WhatsAppChat, conversation: any, userId: string) {
-  try {
-    const group = await prisma.group.upsert({
-      where: {
-        id: conversation.groupId
-     },
-      update: {
-        name: whatsappChat.name || 'Groupe sans nom',
-        description: undefined, // WhatsApp ne fournit pas de description
-        avatar: undefined, // À récupérer séparément si disponible
-        isPublic: !whatsappChat.isReadOnly,
-        maxMembers: 256, // Valeur par défaut
-        updatedAt: new Date()
-      },
-      create: {
-        name: whatsappChat.name || 'Groupe sans nom',
-        ownerId: userId, // L'utilisateur actuel est considéré comme owner
-        id: conversation.groupId,
-        isPublic: !whatsappChat.isReadOnly,
-        maxMembers: 256
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            image: true
-          }
-        }
-      }
-    });
-
-    // Associer le groupe à la conversation
-    await prisma.conversation.update({
-      where: { id: conversation.id },
-      data: { groupId: group.id }
-    });
-
-  } catch (error) {
-    console.error('Erreur synchronisation groupe:', error);
-  }
-}
-
-/**
- * Service pour la gestion avancée des conversations
- */
-export class ConversationManager {
-  /**
-   * Récupère les conversations avec pagination et filtres
-   */
-  static async getConversations(
-    userId: string, 
-    filters?: { 
-      type?: 'DIRECT' | 'GROUP';
-      archived?: boolean;
-      muted?: boolean;
-      pinned?: boolean;
-      search?: string;
-    },
-    page: number = 1, 
-    limit: number = 50
-  ) {
-    const skip = (page - 1) * limit;
-    
-    const where: any = { userId };
-    
-    if (filters?.type) where.type = filters.type;
-    if (filters?.archived !== undefined) where.isArchived = filters.archived;
-    if (filters?.muted !== undefined) where.isMuted = filters.muted;
-    if (filters?.pinned !== undefined) where.isPinned = filters.pinned;
-    
-    if (filters?.search) {
-      where.OR = [
-        { name: { contains: filters.search, mode: 'insensitive' } },
-        { contact: { name: { contains: filters.search, mode: 'insensitive' } } },
-        { group: { name: { contains: filters.search, mode: 'insensitive' } } }
-      ];
-    }
-
-    const [conversations, total] = await Promise.all([
-      prisma.conversation.findMany({
-        where,
-        include: {
-          contact: {
-            include: {
-              contactUser: {
-                select: {
-                  id: true,
-                  name: true,
-                  image: true,
-                  phone: true
-                }
-              }
-            }
-          },
-          group: {
-            include: {
-              owner: {
-                select: {
-                  id: true,
-                  name: true,
-                  image: true
-                }
-              },
-              members: {
-                include: {
-                  user: {
-                    select: {
-                      id: true,
-                      name: true,
-                      image: true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          messages: {
-            take: 1,
-            orderBy: { createdAt: 'desc' },
-            select: {
-              id: true,
-              content: true,
-              type: true,
-              createdAt: true,
-              sender: {
-                select: {
-                  id: true,
-                  name: true
-                }
-              }
-            }
-          },
-          folder: {
-            select: {
-              id: true,
-              name: true,
-              color: true
-            }
-          }
-        },
-        orderBy: [
-          { isPinned: 'desc' },
-          { lastMessageAt: 'desc' },
-          { updatedAt: 'desc' }
-        ],
-        skip,
-        take: limit
-      }),
-      prisma.conversation.count({ where })
-    ]);
-
-    return {
-      conversations,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    };
   }
 
-  /**
-   * Épingler/désépingler une conversation
-   */
-  static async togglePin(userId: string, conversationId: string) {
-    const conversation = await prisma.conversation.findFirst({
-      where: { id: conversationId, userId }
-    });
+  const synced = stats.created + stats.updated;
 
-    if (!conversation) {
-      throw new Error('Conversation non trouvée');
-    }
-
-    return await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { isPinned: !conversation.isPinned },
-      include: {
-        contact: {
-          include: {
-            contactUser: {
-              select: {
-                id: true,
-                name: true,
-                image: true
-              }
-            }
-          }
-        },
-        group: {
-          include: {
-            owner: {
-              select: {
-                id: true,
-                name: true,
-                image: true
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  /**
-   * Archiver/désarchiver une conversation
-   */
-  static async toggleArchive(userId: string, conversationId: string) {
-    const conversation = await prisma.conversation.findFirst({
-      where: { id: conversationId, userId }
-    });
-
-    if (!conversation) {
-      throw new Error('Conversation non trouvée');
-    }
-
-    return await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { isArchived: !conversation.isArchived },
-      include: {
-        contact: {
-          include: {
-            contactUser: {
-              select: {
-                id: true,
-                name: true,
-                image: true
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  /**
-   * Marquer une conversation comme lue
-   */
-  static async markAsRead(userId: string, conversationId: string) {
-    return await prisma.conversation.update({
-      where: { id: conversationId, userId },
-      data: { 
-        unreadCount: 0,
-        lastReadAt: new Date()
-      }
-    });
-  }
-
-  /**
-   * Obtenir les statistiques des conversations
-   */
-  static async getStats(userId: string) {
-    const stats = await prisma.conversation.aggregate({
-      where: { userId },
-      _count: {
-        id: true,
-        _all: true
-      },
-      _sum: {
-        unreadCount: true
-      }
-    });
-
-    const byType = await prisma.conversation.groupBy({
-      by: ['type'],
-      where: { userId },
-      _count: { id: true }
-    });
-
-    const archived = await prisma.conversation.count({
-      where: { userId, isArchived: true }
-    });
-
-    const pinned = await prisma.conversation.count({
-      where: { userId, isPinned: true }
-    });
-
-    const muted = await prisma.conversation.count({
-      where: { userId, isMuted: true }
-    });
-
-    return {
-      total: stats._count.id,
-      unreadTotal: stats._sum.unreadCount || 0,
-      byType: byType.reduce((acc, item) => {
-        acc[item.type] = item._count.id;
-        return acc;
-      }, {} as Record<string, number>),
-      archived,
-      pinned,
-      muted,
-      regular: stats._count.id - archived - pinned
-    };
-  }
-}
-
-/**
- * Fonction utilitaire pour nettoyer les anciennes conversations
- */
-export async function cleanupOldConversations(userId: string, olderThanDays: number = 30) {
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
-
-  const result = await prisma.conversation.deleteMany({
-    where: {
-      userId,
-      isArchived: true,
-      lastMessageAt: { lt: cutoffDate },
-      isPinned: false
-    }
-  });
+  console.log(
+    `✅ Synchronisation conversations terminée: ${synced}/${stats.total} (${stats.created} créées, ${stats.updated} mises à jour)`
+  );
 
   return {
-    deleted: result.count,
-    message: `${result.count} conversations archivées supprimées`
+    success: true,
+    synced,
+    errors,
+    stats,
   };
+}
+
+/**
+ * Synchronise un groupe depuis une conversation WhatsApp
+ */
+async function syncGroupFromChat(
+  waChat: WhatsAppChat,
+  userId: string
+): Promise<{ groupId: string | null }> {
+  try {
+    const groupWhatsappId = waChat.id;
+
+    // Chercher un groupe existant
+    const existingGroup = await prisma.group.findFirst({
+      where: {
+        // Note: Vous devrez ajouter un champ whatsappId au modèle Group
+        name: waChat.name || groupWhatsappId,
+      },
+    });
+
+    if (existingGroup) {
+      return { groupId: existingGroup.id };
+    }
+
+    // Créer un nouveau groupe
+    const newGroup = await prisma.group.create({
+      data: {
+        name: waChat.name || 'Groupe WhatsApp',
+        ownerId: userId, // Le premier utilisateur devient owner
+        ephemeralEnabled: !!waChat.ephemeralExpiration,
+        ephemeralDuration: waChat.ephemeralExpiration,
+      },
+    });
+
+    // Ajouter l'utilisateur actuel comme membre
+    await prisma.groupMember.create({
+      data: {
+        groupId: newGroup.id,
+        userId,
+        role: 'OWNER',
+      },
+    });
+
+    return { groupId: newGroup.id };
+  } catch (error) {
+    console.error('❌ Erreur sync groupe:', error);
+    return { groupId: null };
+  }
+}
+
+/**
+ * Synchronise une conversation individuelle
+ */
+export async function syncSingleConversation(
+  waChat: WhatsAppChat,
+  userId: string
+): Promise<{ success: boolean; conversation?: any; error?: string }> {
+  try {
+    const isGroup = waChat.id.includes('@g.us');
+    const conversationType = isGroup ? 'GROUP' : 'DIRECT';
+    const whatsappId = waChat.id;
+    const phone = isGroup ? null : whatsappId.split('@')[0].split(':')[0];
+
+    let contactId: string | null = null;
+    let groupId: string | null = null;
+
+    if (isGroup) {
+      const groupResult = await syncGroupFromChat(waChat, userId);
+      groupId = groupResult.groupId;
+    } else if (phone) {
+      const contact = await prisma.contact.findFirst({
+        where: { userId, phone },
+        select: { id: true },
+      });
+      contactId = contact?.id || null;
+    }
+
+    const existingConversation = await prisma.conversation.findFirst({
+      where: { userId, whatsappId },
+    });
+
+    const conversationData: any = {
+      userId,
+      type: conversationType,
+      whatsappId,
+      contactId,
+      groupId,
+      name: waChat.name || undefined,
+      isPinned: waChat.pinned ? waChat.pinned > 0 : false,
+      isMuted: waChat.muteEndTime ? waChat.muteEndTime > Date.now() : false,
+      mutedUntil: waChat.muteEndTime ? new Date(waChat.muteEndTime) : undefined,
+      isArchived: waChat.archived || false,
+      unreadCount: waChat.unreadCount || 0,
+      lastMessageAt: waChat.conversationTimestamp
+        ? new Date(waChat.conversationTimestamp * 1000)
+        : undefined,
+      ephemeralEnabled: !!waChat.ephemeralExpiration,
+      ephemeralDuration: waChat.ephemeralExpiration || undefined,
+      updatedAt: new Date(),
+    };
+
+    if (existingConversation) {
+      const updated = await prisma.conversation.update({
+        where: { id: existingConversation.id },
+        data: conversationData,
+      });
+      return { success: true, conversation: updated };
+    } else {
+      const created = await prisma.conversation.create({
+        data: conversationData,
+      });
+      return { success: true, conversation: created };
+    }
+  } catch (error) {
+    console.error('❌ Erreur sync conversation individuelle:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Met à jour le compteur de messages non lus
+ */
+export async function updateUnreadCount(
+  whatsappId: string,
+  userId: string,
+  unreadCount: number
+): Promise<void> {
+  await prisma.conversation.updateMany({
+    where: {
+      userId,
+      whatsappId,
+    },
+    data: {
+      unreadCount,
+      updatedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Marque une conversation comme lue
+ */
+export async function markConversationAsRead(
+  conversationId: string,
+  userId: string
+): Promise<void> {
+  await prisma.conversation.update({
+    where: {
+      id: conversationId,
+      userId,
+    },
+    data: {
+      unreadCount: 0,
+      lastReadAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
 }

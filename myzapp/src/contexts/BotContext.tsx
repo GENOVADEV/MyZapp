@@ -79,7 +79,6 @@ export function BotProvider({ children }: { children: ReactNode }) {
     isConnected,
   } = useWhatsAppConnection();
 
-  const { syncUserData } = useUserSync();
   const { contacts, refreshContacts } = useContacts();
   const { conversations, refreshConversations } = useConversations();
 
@@ -106,50 +105,13 @@ export function BotProvider({ children }: { children: ReactNode }) {
   // ========================================================================
   // SYNC GLOBAL (🔥 CLEAN)
   // ========================================================================
-
-  const runFullSync = useCallback(async () => {
-    if (!user) return;
-
-    setIsSyncing(true);
-    setSyncProgress([]);
-
-    try {
-      // USER
-      updateProgress("user", "in_progress", "Sync utilisateur...");
-      await syncUserData(user);
-      updateProgress("user", "completed", "Profil synchronisé");
-
-      // CONTACTS
-      updateProgress("contacts", "in_progress", "Chargement contacts...");
-      await refreshContacts();
-      updateProgress(
-        "contacts",
-        "completed",
-        `${contacts.length} contacts`
-      );
-
-      // CONVERSATIONS
-      updateProgress("conversations", "in_progress", "Chargement discussions...");
-      await refreshConversations();
-      updateProgress(
-        "conversations",
-        "completed",
-        `${conversations.length} conversations`
-      );
-
-    } catch (err) {
-      console.error("❌ Sync error:", err);
-      setSyncProgress((prev) =>
-        prev.map((p) =>
-          p.status === "in_progress"
-            ? { ...p, status: "error", message: "Erreur" }
-            : p
-        )
-      );
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [user, syncUserData, refreshContacts, refreshConversations, contacts.length, conversations.length]);
+const runFullSync = useCallback(async () => {
+    console.log("Le backend s'occupe de la synchronisation en arrière-plan...");
+    
+    // Tu peux juste afficher un toast ou mettre à jour un state de chargement ici
+    // Pas d'appel à syncUserData, syncContacts, etc !
+    
+}, []);
 
   // ========================================================================
   // AUTO SYNC quand connecté

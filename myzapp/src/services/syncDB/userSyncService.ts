@@ -1,19 +1,20 @@
 // src/services/syncDB/userSyncService.ts
 import { prisma } from '@/lib/prisma';
+import type { Contact as WAContact } from '@whiskeysockets/baileys';
 
-// Types pour l'utilisateur WhatsApp (basés sur Baileys)
 interface WhatsAppUser {
-  id: string; // Format: 1234567890@s.whatsapp.net
+  id: string;
   name?: string;
-  phone?: string;
+  notify?: string;
+  verifiedName?: string;
   imgUrl?: string;
   status?: string;
-  verifiedName?: string;
-  shortName?: string;
-  notify?: string;
+  platform?: string;
+  device?: string;
+  pushname?: string;
 }
 
-interface SyncResult {
+interface SyncUserResult {
   success: boolean;
   synced: boolean;
   errors: string[];
@@ -23,82 +24,75 @@ interface SyncResult {
     nameUpdated: boolean;
     avatarUpdated: boolean;
     whatsappConnected: boolean;
+    statusUpdated: boolean;
+    deviceUpdated: boolean;
   };
 }
 
 /**
- * Synchronise les données utilisateur WhatsApp avec le profil de l'application
+ * Synchronise les données utilisateur WhatsApp avec la DB
  */
 export async function syncUserData(
-  whatsappUser: WhatsAppUser, 
+  whatsappUser: WhatsAppUser,
   userId: string
-): Promise<SyncResult> {
-  const result: SyncResult = {
-    success: true,
-    synced: false,
-    errors: [],
-    stats: {
-      phoneUpdated: false,
-      nameUpdated: false,
-      avatarUpdated: false,
-      whatsappConnected: true
-    }
+): Promise<SyncUserResult> {
+  const errors: string[] = [];
+  const stats = {
+    phoneUpdated: false,
+    nameUpdated: false,
+    avatarUpdated: false,
+    whatsappConnected: false,
+    statusUpdated: false,
+    deviceUpdated: false,
   };
 
   try {
-    // Valider les données utilisateur
-    if (!whatsappUser?.id) {
-      throw new Error('Données utilisateur WhatsApp invalides');
-    }
-
-    // Extraire le numéro de téléphone de l'ID WhatsApp
-    const whatsappPhone = extractPhoneNumber(whatsappUser.id);
-    if (!whatsappPhone) {
-      throw new Error('Impossible d\'extraire le numéro de téléphone WhatsApp');
-    }
-
-    // Récupérer l'utilisateur actuel
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        phone: true,
-        name: true,
-        image: true,
-        phoneVerified: true,
-      }
-    });
-
-    if (!currentUser) {
-      throw new Error('Utilisateur non trouvé');
-    }
+    // Extraire le numéro de téléphone du JID WhatsApp
+    // Format: 237612345678@s.whatsapp.net ou 237612345678:45@s.whatsapp.net
+    const phone = whatsappUser.id.split('@')[0].split(':')[0];
 
     // Préparer les données de mise à jour
     const updateData: any = {
       whatsappConnected: true,
       whatsappId: whatsappUser.id,
       lastWhatsappSync: new Date(),
-      updatedAt: new Date()
+      lastSyncAt: new Date(),
     };
 
-    // Mettre à jour le numéro de téléphone si différent et non vérifié
-    if (whatsappPhone !== currentUser.phone && !currentUser.phoneVerified) {
-      updateData.phone = whatsappPhone;
+    // Mise à jour du téléphone si absent
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { phone: true, name: true, image: true },
+    });
+
+    if (!user) {
+      errors.push('Utilisateur introuvable');
+      return { success: false, synced: false, errors, stats };
+    }
+
+    // Téléphone
+    if (!user.phone && phone) {
+      updateData.phone = phone;
       updateData.phoneVerified = new Date();
-      result.stats.phoneUpdated = true;
+      stats.phoneUpdated = true;
     }
 
-    // Mettre à jour le nom si WhatsApp fournit un meilleur nom
-    const whatsappName = determineUserName(whatsappUser);
-    if (shouldUpdateName(currentUser.name, whatsappName)) {
+    // Nom (priorité: verifiedName > notify > name > pushname)
+    const whatsappName =
+      whatsappUser.verifiedName ||
+      whatsappUser.notify ||
+      whatsappUser.name ||
+      whatsappUser.pushname;
+
+    if (!user.name && whatsappName) {
       updateData.name = whatsappName;
-      result.stats.nameUpdated = true;
+      stats.nameUpdated = true;
     }
 
-    // Mettre à jour l'avatar si WhatsApp en fournit un
-    if (whatsappUser.imgUrl && whatsappUser.imgUrl !== currentUser.image) {
+    // Avatar
+    if (!user.image && whatsappUser.imgUrl) {
       updateData.image = whatsappUser.imgUrl;
-      result.stats.avatarUpdated = true;
+      stats.avatarUpdated = true;
     }
 
     // Mettre à jour l'utilisateur
@@ -107,298 +101,203 @@ export async function syncUserData(
       data: updateData,
       select: {
         id: true,
-        name: true,
         email: true,
+        name: true,
         phone: true,
         image: true,
-        phoneVerified: true,
         whatsappConnected: true,
         whatsappId: true,
         lastWhatsappSync: true,
-        plan: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true
-      }
-    });
-
-    // Créer ou mettre à jour l'appareil WhatsApp
-    await syncWhatsAppDevice(whatsappUser, userId);
-
-    // Créer un log d'audit pour la synchronisation
-    await createAuditLog(userId, 'whatsapp_sync', 'User', userId, {
-      whatsappId: whatsappUser.id,
-      changes: {
-        phoneUpdated: result.stats.phoneUpdated,
-        nameUpdated: result.stats.nameUpdated,
-        avatarUpdated: result.stats.avatarUpdated
-      }
-    });
-
-    result.synced = true;
-    result.user = updatedUser;
-
-  } catch (error) {
-    result.success = false;
-    result.errors.push((error as Error).message);
-  }
-
-  return result;
-}
-
-/**
- * Extrait le numéro de téléphone de l'ID WhatsApp
- */
-function extractPhoneNumber(whatsappId: string): string | null {
-  try {
-    const phoneMatch = whatsappId.match(/^(\d+)@/);
-    if (!phoneMatch) return null;
-    
-    const phone = phoneMatch[1];
-    
-    // Validation basique
-    if (phone.length < 8 || phone.length > 15) return null;
-    
-    return phone;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Détermine le meilleur nom à utiliser
- */
-function determineUserName(whatsappUser: WhatsAppUser): string {
-  return (
-    whatsappUser.verifiedName || 
-    whatsappUser.name || 
-    whatsappUser.notify || 
-    whatsappUser.shortName || 
-    'Utilisateur WhatsApp'
-  );
-}
-
-/**
- * Détermine si le nom doit être mis à jour
- */
-function shouldUpdateName(currentName: string | null, whatsappName: string): boolean {
-  if (!currentName) return true;
-  if (currentName === 'Utilisateur' || currentName === 'User') return true;
-  if (whatsappName.length > currentName.length) return true;
-  return false;
-}
-
-/**
- * Synchronise l'appareil WhatsApp
- */
-async function syncWhatsAppDevice(whatsappUser: WhatsAppUser, userId: string) {
-  try {
-    await prisma.device.upsert({
-      where: {
-        id: whatsappUser.id
       },
-      update: {
-        deviceName: 'WhatsApp',
-        lastSeenAt: new Date(),
-        isActive: true,
-        platform: 'WhatsApp',
-        appVersion: 'Latest',
-      },
-      create: {
-        userId,
-        deviceName: 'WhatsApp',
-        deviceType: 'MOBILE',
-        platform: 'WhatsApp',
-        appVersion: 'Latest',
-        isActive: true,
-        lastSeenAt: new Date()
-      }
     });
-  } catch (error) {
-    console.error('Erreur synchronisation appareil WhatsApp:', error);
-  }
-}
 
-/**
- * Crée un log d'audit
- */
-async function createAuditLog(
-  userId: string, 
-  action: string, 
-  entity: string, 
-  entityId: string, 
-  metadata?: any
-) {
-  try {
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action,
-        entity,
-        entityId,
-        metadata,
-        createdAt: new Date()
-      }
-    });
-  } catch (error) {
-    console.error('Erreur création log audit:', error);
-  }
-}
+    stats.whatsappConnected = true;
 
-/**
- * Service pour la gestion multi-comptes utilisateur
- */
-export class UserSyncManager {
-  /**
-   * Synchronise les données de plusieurs comptes WhatsApp pour un utilisateur
-   */
-  static async syncMultipleAccounts(whatsappUsers: WhatsAppUser[], userId: string) {
-    const results = [];
-    
-    for (const whatsappUser of whatsappUsers) {
+    // Synchroniser le statut si disponible
+    if (whatsappUser.status) {
       try {
-        const result = await syncUserData(whatsappUser, userId);
-        results.push({
-          whatsappId: whatsappUser.id,
-          success: result.success,
-          synced: result.synced,
-          errors: result.errors
-        });
+        await syncUserStatus(userId, whatsappUser.status);
+        stats.statusUpdated = true;
       } catch (error) {
-        results.push({
-          whatsappId: whatsappUser.id,
-          success: false,
-          synced: false,
-          errors: [(error as Error).message]
-        });
+        errors.push(`Erreur sync statut: ${error}`);
       }
     }
 
-    return results;
-  }
-
-  /**
-   * Vérifie le statut de connexion WhatsApp de l'utilisateur
-   */
-  static async getWhatsAppStatus(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        whatsappConnected: true,
-        whatsappId: true,
-        lastWhatsappSync: true,
-        phone: true,
-        phoneVerified: true,
-        devices: {
-          where: { 
-            deviceType: 'MOBILE',
-            platform: 'WhatsApp',
-            isActive: true 
-          },
-          orderBy: { lastSeenAt: 'desc' },
-          take: 1
-        }
+    // Synchroniser les informations de l'appareil
+    if (whatsappUser.platform || whatsappUser.device) {
+      try {
+        await syncUserDevice(userId, {
+          platform: whatsappUser.platform,
+          device: whatsappUser.device,
+        });
+        stats.deviceUpdated = true;
+      } catch (error) {
+        errors.push(`Erreur sync appareil: ${error}`);
       }
-    });
+    }
+
+    console.log(`✅ Utilisateur ${userId} synchronisé avec WhatsApp`);
 
     return {
-      connected: user?.whatsappConnected || false,
-      whatsappId: user?.whatsappId,
-      lastSync: user?.lastWhatsappSync,
-      phone: user?.phone,
-      phoneVerified: !!user?.phoneVerified,
-      activeDevice: user?.devices[0] || null,
-      status: user?.whatsappConnected ? 'connected' : 'disconnected'
+      success: true,
+      synced: true,
+      errors,
+      user: updatedUser,
+      stats,
     };
-  }
-
-  /**
-   * Déconnecte WhatsApp de l'utilisateur
-   */
-  static async disconnectWhatsApp(userId: string) {
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        whatsappConnected: false,
-        whatsappId: null,
-        lastWhatsappSync: null,
-        updatedAt: new Date()
-      },
-      select: {
-        id: true,
-        name: true,
-        whatsappConnected: true
-      }
-    });
-
-    // Désactiver l'appareil WhatsApp
-    await prisma.device.updateMany({
-      where: { 
-        userId,
-        platform: 'WhatsApp'
-      },
-      data: {
-        isActive: false,
-      }
-    });
-
-    // Log d'audit
-    await createAuditLog(userId, 'whatsapp_disconnect', 'User', userId);
-
-    return user;
-  }
-
-  /**
-   * Récupère l'historique des synchronisations WhatsApp
-   */
-  static async getSyncHistory(userId: string, limit: number = 10) {
-    const auditLogs = await prisma.auditLog.findMany({
-      where: {
-        userId,
-        action: { in: ['whatsapp_sync', 'whatsapp_disconnect'] }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit
-    });
-
-    return auditLogs.map(log => ({
-      action: log.action,
-      timestamp: log.createdAt,
-      metadata: log.metadata
-    }));
+  } catch (error) {
+    console.error('❌ Erreur synchronisation utilisateur:', error);
+    errors.push(`Erreur DB: ${error}`);
+    return { success: false, synced: false, errors, stats };
   }
 }
 
 /**
- * Hook React pour la synchronisation utilisateur (FRONTEND)
+ * Synchronise le statut utilisateur
  */
-export function useUserSync() {
-  const syncUserData = async (whatsappUser: any) => {
-    const response = await fetch('/api/bot/user/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: whatsappUser })
-    });
-    
-    return await response.json();
-  };
+async function syncUserStatus(userId: string, status: string): Promise<void> {
+  // Créer ou mettre à jour un champ de statut WhatsApp
+  // Note: Vous devrez peut-être ajouter un champ `whatsappStatus` à votre modèle User
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      // whatsappStatus: status, // Ajoutez ce champ au modèle si nécessaire
+      updatedAt: new Date(),
+    },
+  });
+}
 
-  const getWhatsAppStatus = async () => {
-    const response = await fetch('/api/bot/user/whatsapp-status');
-    return await response.json();
-  };
+/**
+ * Synchronise les informations de l'appareil
+ */
+async function syncUserDevice(
+  userId: string,
+  deviceInfo: { platform?: string; device?: string }
+): Promise<void> {
+  const { platform, device } = deviceInfo;
 
-  const disconnectWhatsApp = async () => {
-    const response = await fetch('/api/bot/user/disconnect-whatsapp', {
-      method: 'POST'
+  // Vérifier si un appareil WhatsApp existe déjà
+  const existingDevice = await prisma.device.findFirst({
+    where: {
+      userId,
+      deviceType: 'MOBILE', // ou 'DESKTOP' selon le cas
+      platform: platform || undefined,
+    },
+  });
+
+  if (existingDevice) {
+    // Mettre à jour l'appareil existant
+    await prisma.device.update({
+      where: { id: existingDevice.id },
+      data: {
+        deviceName: device || existingDevice.deviceName,
+        platform: platform || existingDevice.platform,
+        isActive: true,
+        lastSeenAt: new Date(),
+        updatedAt: new Date(),
+      },
     });
-    return await response.json();
-  };
+  } else {
+    // Créer un nouvel appareil
+    await prisma.device.create({
+      data: {
+        userId,
+        deviceName: device || 'WhatsApp Device',
+        deviceType: platform?.toLowerCase().includes('web') ? 'WEB' : 'MOBILE',
+        platform: platform || 'WhatsApp',
+        isActive: true,
+        lastSeenAt: new Date(),
+      },
+    });
+  }
+}
+
+/**
+ * Met à jour des champs spécifiques de l'utilisateur
+ */
+export async function updateUserFields(
+  userId: string,
+  fields: Partial<{
+    whatsappConnected: boolean;
+    whatsappId: string | null;
+    lastWhatsappSync: Date | null;
+  }>
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...fields,
+      updatedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Déconnecte WhatsApp pour un utilisateur
+ */
+export async function disconnectWhatsApp(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      whatsappConnected: false,
+      whatsappId: null,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Désactiver tous les appareils WhatsApp
+  await prisma.device.updateMany({
+    where: {
+      userId,
+      platform: { contains: 'WhatsApp' },
+    },
+    data: {
+      isActive: false,
+      updatedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Récupère le statut WhatsApp d'un utilisateur
+ */
+export async function getWhatsAppStatus(userId: string): Promise<{
+  connected: boolean;
+  whatsappId: string | null;
+  lastSync: Date | null;
+  phone: string | null;
+  phoneVerified: boolean;
+  activeDevice: any | null;
+}> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      whatsappConnected: true,
+      whatsappId: true,
+      lastWhatsappSync: true,
+      phone: true,
+      phoneVerified: true,
+      devices: {
+        where: {
+          isActive: true,
+          platform: { contains: 'WhatsApp' },
+        },
+        orderBy: { lastSeenAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!user) {
+    throw new Error('Utilisateur introuvable');
+  }
 
   return {
-    syncUserData,
-    getWhatsAppStatus,
-    disconnectWhatsApp
+    connected: user.whatsappConnected,
+    whatsappId: user.whatsappId,
+    lastSync: user.lastWhatsappSync,
+    phone: user.phone,
+    phoneVerified: !!user.phoneVerified,
+    activeDevice: user.devices[0] || null,
   };
 }

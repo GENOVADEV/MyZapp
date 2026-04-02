@@ -11,7 +11,6 @@ export interface Contact {
   email?: string;
   avatar?: string;
   bio?: string;
-  isFavorite: boolean;
   isBlocked: boolean;
   notes?: string;
   customFields?: any;
@@ -125,38 +124,6 @@ export function useContacts(filters?: ContactFilters) {
     }
   });
 
-  // Mutation pour basculer le statut favori
-  const toggleFavoriteMutation = useMutation({
-    mutationFn: async (contactId: string): Promise<Contact> => {
-      const response = await fetch(`/api/data/contacts/${contactId}/favorite`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Erreur lors de la modification du contact');
-      }
-      
-      return await response.json();
-    },
-    onSuccess: (updatedContact) => {
-      // Mettre à jour le cache local
-      queryClient.setQueryData(
-        ['contacts', filters, page, limit],
-        (old: ContactsResponse) => ({
-          ...old,
-          contacts: old.contacts.map(contact =>
-            contact.id === updatedContact.id ? updatedContact : contact
-          )
-        })
-      );
-      
-      if (selectedContact?.id === updatedContact.id) {
-        setSelectedContact(updatedContact);
-      }
-    }
-  });
-
   // Mutation pour basculer le blocage
   const toggleBlockMutation = useMutation({
     mutationFn: async (contactId: string): Promise<Contact> => {
@@ -209,7 +176,7 @@ export function useContacts(filters?: ContactFilters) {
       console.log('🔄 Synchronisation manuelle avec WhatsApp...');
       
       // Appeler une API qui déclenche une resynchronisation
-      const response = await fetch('/api/data/contacts/sync-whatsapp', {
+      const response = await fetch('/api/data/sync-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -320,9 +287,6 @@ export function useContacts(filters?: ContactFilters) {
     syncContacts: syncContactsMutation.mutateAsync,
     syncContactsStatus: syncContactsMutation.status,
     
-    toggleFavorite: toggleFavoriteMutation.mutateAsync,
-    toggleFavoriteLoading: toggleFavoriteMutation.isPending,
-    
     toggleBlock: toggleBlockMutation.mutateAsync,
     toggleBlockLoading: toggleBlockMutation.isPending,
     
@@ -342,9 +306,10 @@ export function useContacts(filters?: ContactFilters) {
     
     // Statistiques pratiques
     totalContacts: contactsData?.pagination?.total || 0,
-    favoritesCount: contactsData?.contacts.filter(contact => contact.isFavorite).length || 0,
-    blockedCount: contactsData?.contacts.filter(contact => contact.isBlocked).length || 0,
-    recentlyAdded: contactsData?.contacts.filter(contact => {
+    
+    // On s'assure que contactsData.contacts existe, sinon on utilise un tableau vide
+    blockedCount: (contactsData?.contacts || []).filter(contact => contact.isBlocked).length || 0,
+    recentlyAdded: (contactsData?.contacts || []).filter(contact => {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       return new Date(contact.createdAt) > sevenDaysAgo;

@@ -361,7 +361,7 @@ export default function WhatsAppConnectionPage() {
                           Générer un nouveau QR Code
                         </button>
                       </div>
-                    ) : status === "connecting" || !isSubmitting ? (
+                    ) :  status === "connecting" || !isSubmitting || !qrCode ? (
                       <div className="text-center py-12 animate-fade-in">
                         <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
                         <p className="text-text-main font-semibold">Génération du QR Code...</p>
@@ -400,10 +400,10 @@ export default function WhatsAppConnectionPage() {
 
                     <button
                       type="submit"
-                      disabled={isSubmitting || status === "connecting" || phoneNumber.length < 8}
+                      disabled={phoneNumber.length < 8}
                       className="btn-primary w-full py-4 text-base font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {(!isSubmitting || status === "connecting") ? (
+                      {(!pairingCode) ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
                           Génération du code...
