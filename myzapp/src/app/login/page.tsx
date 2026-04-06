@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -24,100 +25,94 @@ import { useAuth } from "@/contexts/AuthContext"
 import { authService, LoginCredentials } from "@/services/auth/authService";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  function LoginContent() {
+    const router = useRouter();
+    // Le hook est ICI, parfaitement sécurisé car il sera dans le Suspense !
+    const searchParams = useSearchParams();
+    const { login, isAuthenticated, isLoading: authLoading } = useAuth();
 
-  // États du formulaire
-  const [formData, setFormData] = useState<LoginCredentials>({
-    email: "",
-    password: "",
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    // États du formulaire
+    const [formData, setFormData] = useState<LoginCredentials>({
+      email: "",
+      password: "",
+    });
+    const [showPassword, setShowPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Redirection si déjà authentifié
-  useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      router.push("/dashboard");
-    }
-  }, [isAuthenticated, authLoading, router]);
-
-  // Message de succès après inscription
-  useEffect(() => {
-    if (searchParams.get("registered") === "true") {
-      setSuccessMessage("✓ Inscription réussie ! Connectez-vous maintenant.");
-    }
-    if (searchParams.get("reset") === "true") {
-      setSuccessMessage("✓ Mot de passe réinitialisé ! Connectez-vous avec votre nouveau mot de passe.");
-    }
-  }, [searchParams]);
-
-  // Gestion du changement des champs
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setError(null); // Efface l'erreur quand l'utilisateur tape
-  };
-
-  // Soumission du formulaire
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMessage(null);
-
-    // Validation basique
-    if (!formData.email || !formData.password) {
-      setError("Veuillez remplir tous les champs");
-      return;
-    }
-
-    if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      setError("Email invalide");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      await login(formData);
-      const res = await authService.login(formData);
-
-      if (res.token) {
-        document.cookie = `auth-token=${res.token}; path=/`;
+    // Redirection si déjà authentifié
+    useEffect(() => {
+      if (isAuthenticated && !authLoading) {
+        router.push("/dashboard");
       }
-    } catch (err: any) {
-      setError(err.message || "Identifiants incorrects. Veuillez réessayer.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    }, [isAuthenticated, authLoading, router]);
 
-  // Connexion OAuth (placeholder)
-  const handleOAuthLogin = (provider: string) => {
-    // TODO: Implémenter OAuth avec NextAuth.js
-    console.log(`Login avec ${provider}`);
-  };
+    // Message de succès après inscription
+    useEffect(() => {
+      if (searchParams.get("registered") === "true") {
+        setSuccessMessage("✓ Inscription réussie ! Connectez-vous maintenant.");
+      }
+      if (searchParams.get("reset") === "true") {
+        setSuccessMessage("✓ Mot de passe réinitialisé ! Connectez-vous avec votre nouveau mot de passe.");
+      }
+    }, [searchParams]);
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background-app flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-primary animate-spin" />
-          <p className="text-text-subtle">Chargement...</p>
+    // Gestion du changement des champs
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      setError(null);
+    };
+
+    // Soumission du formulaire
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+      setSuccessMessage(null);
+
+      if (!formData.email || !formData.password) {
+        setError("Veuillez remplir tous les champs");
+        return;
+      }
+
+      if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        setError("Email invalide");
+        return;
+      }
+
+      setIsLoading(true);
+
+      try {
+        await login(formData);
+        const res = await authService.login(formData);
+
+        if (res.token) {
+          document.cookie = `auth-token=${res.token}; path=/`;
+        }
+      } catch (err: any) {
+        setError(err.message || "Identifiants incorrects. Veuillez réessayer.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const handleOAuthLogin = (provider: string) => {
+      console.log(`Login avec ${provider}`);
+    };
+
+    if (authLoading) {
+      return (
+        <div className="min-h-screen bg-background-app flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 text-primary animate-spin" />
+            <p className="text-text-subtle">Chargement...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {/* SEO Metadata (à ajouter dans un layout ou via next/head) */}
-      <div className="min-h-screen bg-gradient-to-br from-background-app via-panel to-background-app flex items-center justify-center p-4 sm:p-6 lg:p-8">
-
-        {/* Fond animé */}
+      );
+    }
+    return (
+      <div> {/* Fond animé */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 -left-48 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse-typing"></div>
           <div className="absolute bottom-1/4 -right-48 w-96 h-96 bg-accent/10 rounded-full blur-3xl animate-pulse-typing" style={{ animationDelay: '1s' }}></div>
@@ -409,6 +404,22 @@ export default function LoginPage() {
 
           </div>
         </div>
+      </div>
+    );
+  }
+  return (
+    <>
+      {/* SEO Metadata (à ajouter dans un layout ou via next/head) */}
+      <div className="min-h-screen bg-gradient-to-br from-background-app via-panel to-background-app flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <Suspense fallback={
+          <div className="min-h-screen bg-background-app flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+              <p className="text-text-subtle">Chargement...</p>
+            </div>
+          </div>}>
+          <LoginContent />
+        </Suspense>
       </div>
     </>
   );

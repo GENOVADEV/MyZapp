@@ -73,7 +73,6 @@ export async function syncMessages(
 
     if (!conversation) {
       const isGroup = chatJid.includes('@g.us');
-      const isBroadcast = chatJid.includes('status@broadcast');
 
       try {
         conversation = await prisma.conversation.create({
@@ -81,7 +80,6 @@ export async function syncMessages(
             userId,
             whatsappId: chatJid,
             type: isGroup ? 'GROUP' : 'DIRECT',
-            isBroadcast: isBroadcast ? true : false,
             unreadCount: fromMe ? 0 : 1,
             lastMessageAt: messageDate,
           },
@@ -112,6 +110,9 @@ export async function syncMessages(
     const contextInfo = waMsg.message?.extendedTextMessage?.contextInfo
       || waMsg.message?.imageMessage?.contextInfo
       || waMsg.message?.videoMessage?.contextInfo;
+
+    
+    const isBroadcast = chatJid.includes('status@broadcast');  
 
     // 📌 reply
     let replyToId = null;
@@ -145,6 +146,8 @@ export async function syncMessages(
 
       conversationId: conversation.id,
       senderId,
+      isBroadcast: isBroadcast ? true : false,
+
 
       type,
       content,
@@ -159,7 +162,6 @@ export async function syncMessages(
       // flags
       fromMe,
       isStarred: waMsg.starred || false,
-      isBroadcast: waMsg.broadcast || false,
       isMulticast: waMsg.multicast || false,
 
       // reply / forward
@@ -240,7 +242,6 @@ export async function syncMessages(
         where: { id: conversation.id },
         data: {
           lastMessageAt: messageDate,
-          updatedAt: new Date(),
         },
       });
     }

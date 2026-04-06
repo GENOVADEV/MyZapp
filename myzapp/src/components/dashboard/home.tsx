@@ -27,14 +27,10 @@ import { Card, CardContent } from "../ui/card";
 export default function DashboardPage() {
   const { user } = useAuth();
   const {
-    status: botStatus,
-    whatsappUser,
+    status,
     isConnected,
     syncProgress,
     isSyncing,
-    syncStats,
-    refreshContacts,
-    refreshConversations
   } = useBot();
 
   const { contacts, totalContacts, refreshContacts: refreshContactsHook } = useContacts();
@@ -205,7 +201,6 @@ export default function DashboardPage() {
                     {progress.type === 'user' && 'Profil utilisateur'}
                     {progress.type === 'contacts' && 'Contacts'}
                     {progress.type === 'conversations' && 'Conversations'}
-                    {progress.type === 'messages' && 'Messages'}
                   </span>
                   <span className={`
                     text-xs font-semibold px-2 py-1 rounded-full
