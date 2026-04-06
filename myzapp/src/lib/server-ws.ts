@@ -446,7 +446,7 @@ export async function initializeWhatsAppSession(
         const { connection, lastDisconnect, qr } = update;
 
         // ── QR Code ──────────────────────────────────────────────────────
-        if (qr) {
+        if (qr && session?.method === 'qr') {
             setSessionStatus(sessionId, 'qr_pending');
             log(sessionId, 'info', 'QR généré');
             try {
@@ -456,7 +456,7 @@ export async function initializeWhatsAppSession(
                     margin: 1,
                     width: 300,
                 });
-                emitToSession(sessionId, 'whatsapp_event', { type: 'qr', data: { qr: qrImage } });
+                emitToSession(sessionId, 'whatsapp_event', { type: 'qr', data: { qr: qrImage, message: 'Nouveau QR généré' } });
             } catch (e) {
                 emitToSession(sessionId, 'whatsapp_event', {
                     type: 'error',
@@ -576,13 +576,14 @@ export async function initializeWhatsAppSession(
                 // Max tentatives atteintes : ne pas supprimer les credentials !
                 // L'utilisateur peut réessayer manuellement via l'UI.
                 setSessionStatus(sessionId, 'disconnected');
-                log(sessionId, 'warn', 'Max tentatives atteintes – session suspendue (credentials conservées)');
+                log(sessionId, 'warn', 'Max tentatives atteintes – session suspendue (credentials supprimés)');
+                await prisma.session.delete({ where: { sessionToken: sessionId } });
                 emitToSession(sessionId, 'whatsapp_event', {
                     type: 'disconnected',
                     data: {
                         reason: 'max_reconnect_attempts_reached',
                         statusCode,
-                        canRetry: true, // Signale au front qu'un bouton "Réessayer" est possible
+                        canRetry: true,
                     },
                 });
             }
