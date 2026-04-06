@@ -325,6 +325,7 @@ model Message {
   editedAt        DateTime?
   originalContent String?
   editHistory     Json?
+  isForwarded     Boolean   @default(false)
 
   // 🗑 suppression
   isDeleted  Boolean   @default(false)
