@@ -37,50 +37,86 @@ export async function syncGroups(
     try {
       const groupWhatsappId = waGroup.id;
 
-      // Chercher si le groupe existe déjà
-      // Note: Ajoutez un champ whatsappId au modèle Group
       const existingGroup = await prisma.group.findFirst({
         where: {
-          // whatsappId: groupWhatsappId,
-          // OU chercher par nom si pas de whatsappId
-          name: waGroup.subject,
+          whatsappId: groupWhatsappId,
         },
       });
 
-      // Déterminer l'owner
-      const ownerPhone = waGroup.owner?.split('@')[0].split(':')[0];
-      let ownerId = userId; // Par défaut, l'utilisateur actuel
+      // 🔹 Owner WhatsApp
+      const ownerJid = waGroup.owner;
+      const ownerPhoneNumber = ownerJid?.split('@')[0]?.split(':')[0];
 
-      if (ownerPhone) {
-        const ownerContact = await prisma.contact.findFirst({
-          where: {
-            userId,
-            phone: ownerPhone,
-          },
-          select: { contactUserId: true },
-        });
-        ownerId = ownerContact?.contactUserId || userId;
-      }
+      // 🔹 Conversion timestamps → Date
+      const subjectTime = waGroup.subjectTime
+        ? new Date(waGroup.subjectTime * 1000)
+        : undefined;
 
+      const descTime = waGroup.descTime
+        ? new Date(waGroup.descTime * 1000)
+        : undefined;
+
+      const creation = waGroup.creation
+        ? new Date(waGroup.creation * 1000)
+        : new Date();
+
+      // 🔹 Mapping complet
       const groupData: any = {
+        // WhatsApp
+        whatsappId: groupWhatsappId,
+        addressingMode: waGroup.addressingMode,
+
+        // Infos principales
         name: waGroup.subject,
         description: waGroup.desc || undefined,
-        // whatsappId: groupWhatsappId, // Ajoutez ce champ
-        ownerId,
-        maxMembers: 256, // Limite par défaut WhatsApp
-        isPublic: false,
-        onlyAdminsCanPost: waGroup.announce || false,
+
+        // Owner (IMPORTANT)
+        ownerId: userId, // 👈 ton user DB
+        ownerJid,
+        ownerPhoneNumber,
+        ownerCountryCode: waGroup.owner_country_code,
+
+        // Subject
+        subjectOwner: waGroup.subjectOwner,
+        subjectOwnerPn: waGroup.subjectOwnerPn,
+        subjectTime,
+
+        // Description metadata
+        descOwner: waGroup.descOwner,
+        descOwnerPn: waGroup.descOwnerPn,
+        descId: waGroup.descId,
+        descTime,
+
+        // Settings
+        onlyAdminsCanEdit: waGroup.restrict ?? false,
+        onlyAdminsCanPost: waGroup.announce ?? false,
+        membersCanAddOthers: waGroup.memberAddMode ?? true,
+        joinApprovalMode: waGroup.joinApprovalMode ?? false,
+
+        // Community
+        isCommunity: waGroup.isCommunity ?? false,
+        isCommunityAnnounce: waGroup.isCommunityAnnounce ?? false,
+        linkedParent: waGroup.linkedParent,
+
+        // Participants
+        size: waGroup.size || waGroup.participants?.length || 0,
+        activeMembers: waGroup.participants?.length || 0,
+
+        // Ephemeral
         ephemeralEnabled: !!waGroup.ephemeralDuration,
         ephemeralDuration: waGroup.ephemeralDuration || undefined,
-        totalMessages: 0,
-        activeMembers: waGroup.participants?.length || 0,
+
+        // Invite
+        inviteCode: waGroup.inviteCode || undefined,
+
+        // Meta
         updatedAt: new Date(),
+        createdAt: creation,
       };
 
       let groupId: string;
 
       if (existingGroup) {
-        // Mettre à jour le groupe existant
         const updated = await prisma.group.update({
           where: { id: existingGroup.id },
           data: groupData,
@@ -88,7 +124,6 @@ export async function syncGroups(
         groupId = updated.id;
         stats.updated++;
       } else {
-        // Créer un nouveau groupe
         const created = await prisma.group.create({
           data: groupData,
         });
@@ -96,10 +131,19 @@ export async function syncGroups(
         stats.created++;
       }
 
-      // Synchroniser les membres du groupe
+      // 🔥 Sync participants avec rôles
       if (waGroup.participants) {
-        await syncGroupMembers(groupId, waGroup.participants, userId);
+        await syncGroupMembers(
+          groupId,
+          waGroup.participants.map((p) => ({
+            ...p,
+            isAdmin: p.admin === "admin" || p.admin === "superadmin",
+            isSuperAdmin: p.admin === "superadmin",
+          })),
+          userId
+        );
       }
+
     } catch (error) {
       console.error(`❌ Erreur sync groupe ${waGroup.id}:`, error);
       errors.push(`Groupe ${waGroup.id}: ${error}`);
@@ -124,7 +168,7 @@ export async function syncGroups(
 /**
  * Synchronise les membres d'un groupe
  */
-async function syncGroupMembers(
+export async function syncGroupMembers(
   groupId: string,
   participants: any[],
   userId: string
@@ -145,7 +189,7 @@ async function syncGroupMembers(
       const memberId = contact?.contactUserId || userId;
 
       // Déterminer le rôle
-      let role: 'OWNER' | 'ADMIN' | 'MODERATOR' | 'MEMBER' = 'MEMBER';
+      let role: 'OWNER' | 'ADMIN' | 'MEMBER' = 'MEMBER';
       if (participant.admin === 'admin') {
         role = 'ADMIN';
       } else if (participant.admin === 'superadmin') {
@@ -208,7 +252,7 @@ export async function updateGroupMetadata(
 
   await prisma.group.updateMany({
     where: {
-      // whatsappId: groupWhatsappId,
+       whatsappId: groupWhatsappId,
     },
     data: updateData,
   });
@@ -220,7 +264,7 @@ export async function updateGroupMetadata(
 export async function addGroupMember(
   groupId: string,
   userId: string,
-  role: 'OWNER' | 'ADMIN' | 'MODERATOR' | 'MEMBER' = 'MEMBER'
+  role: 'OWNER' | 'ADMIN' |'MEMBER' = 'MEMBER'
 ): Promise<void> {
   await prisma.groupMember.upsert({
     where: {

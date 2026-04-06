@@ -305,7 +305,7 @@ export default function WhatsAppConnectionPage() {
                       <div className="flex-1">
                         <h3 className="font-bold text-text-main mb-1 text-lg">Code de jumelage</h3>
                         <p className="text-sm text-text-subtle">
-                          Recevez un code à 8 chiffres sur votre téléphone
+                          Recevez un code à 8 caracteres sur votre téléphone
                         </p>
                         <p className="text-xs text-accent mt-1">Alternative pratique</p>
                       </div>
@@ -372,7 +372,7 @@ export default function WhatsAppConnectionPage() {
                 )}
 
                 {/* Méthode Téléphone : Formulaire */}
-                {connectionMethod === "phone" && status !== "connected" && !pairingCode && (
+                {connectionMethod === "phone" && status !== "connected" && (
                   <form onSubmit={handlePhoneConnection} className="space-y-6 animate-slide-up">
                     <div className="space-y-2">
                       <label htmlFor="phone" className="block text-sm font-semibold text-text-main">
@@ -403,7 +403,7 @@ export default function WhatsAppConnectionPage() {
                       disabled={phoneNumber.length < 8}
                       className="btn-primary w-full py-4 text-base font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {(!pairingCode) ? (
+                      {(!pairingCode && isSubmitting) ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
                           Génération du code...

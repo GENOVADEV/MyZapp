@@ -407,8 +407,10 @@ export default function DashboardPage() {
 
 // Fonctions utilitaires
 function formatTimeAgo(date: Date): string {
+  if (!date) return "";
+  const realDate = new Date(date);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  const diffMs = Math.floor(now.getTime() - realDate.getTime());
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);

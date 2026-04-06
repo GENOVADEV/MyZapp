@@ -327,7 +327,7 @@ export default function RegisterPage() {
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-2">
                   {[1, 2, 3].map((step) => (
-                    <div key={step} className="flex items-center flex-1">
+                    <div key={step} className="flex items-center">
                       <div className={`
                         w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all
                         ${currentStep >= step 
@@ -343,7 +343,7 @@ export default function RegisterPage() {
                       </div>
                       {step < 3 && (
                         <div className={`
-                          flex-1 h-1 mx-2 rounded-full transition-all
+                          h-1 w-16 mx-16  rounded-full transition-all
                           ${currentStep > step ? 'bg-primary' : 'bg-border-main'}
                         `}></div>
                       )}

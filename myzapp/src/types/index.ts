@@ -60,11 +60,12 @@ export enum MessageType {
 }
 
 export enum MessageStatus {
-  SENDING = "SENDING",
-  SENT = "SENT",
-  DELIVERED = "DELIVERED",
+  ERROR = "ERROR",
+  PENDING = "PENDING",
+  SERVER_ACK = "SERVER_ACK",
   READ = "READ",
-  FAILED = "FAILED",
+  PLAYED = "PLAYED",
+  SENT = "SENT",
 }
 
 export enum MediaType {

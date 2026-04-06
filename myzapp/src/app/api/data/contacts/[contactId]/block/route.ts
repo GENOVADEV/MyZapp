@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/auth';
 // BINGO ! Tu importes directement tes fonctions
-import { updateBlockStatus, getSessionIdForUser } from '@/lib/server-ws'; 
+import { updateBlockStatus, getUserSessions } from '@/lib/server-ws'; 
 
 export async function PATCH(req: Request, { params }: { params: { contactId: string } }) {
   try {
@@ -14,11 +14,13 @@ export async function PATCH(req: Request, { params }: { params: { contactId: str
     const action = newBlockStatus ? 'block' : 'unblock';
 
     // 1. Tu récupères l'ID de session directement en mémoire !
-    const sessionId = getSessionIdForUser((user as any)?.userId);
+    const sessions = getUserSessions((user as any)?.userId);
+    const sessionId = sessions[0];
+
 
     if (sessionId) {
         // 2. Tu appelles la fonction Baileys directement !
-        await updateBlockStatus(sessionId, (contact as any)?.phone, action);
+        await updateBlockStatus((sessionId as any), (contact as any)?.phone, action);
     } else {
         return NextResponse.json({ error: "WhatsApp n'est pas connecté." }, { status: 400 });
     }

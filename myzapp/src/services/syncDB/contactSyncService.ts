@@ -53,9 +53,7 @@ export async function syncContacts(
       }
 
       // Priorité pour le nom: verifiedName > notify > name
-      const contactName =
-        waContact.verifiedName || waContact.notify || waContact.name || phone;
-
+      const contactName = waContact.name || waContact.notify || waContact.verifiedName || phone;
       // Vérifier si le contact existe déjà
       const existingContact = await prisma.contact.findFirst({
         where: {
@@ -88,7 +86,7 @@ export async function syncContacts(
           data: {
             userId,
             contactUserId: contactUser?.id,
-            name: contactName,
+            name: contactName || " pas de nom",
             phone,
             avatar: waContact.imgUrl,
             bio: waContact.status,

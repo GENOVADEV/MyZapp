@@ -17,6 +17,11 @@ interface SyncMessagesResult {
   };
 }
 
+export function bufferToBase64(buffer: Uint8Array | Buffer | null | undefined): string | null {
+  if (!buffer) return null;
+  return Buffer.from(buffer).toString('base64');
+}
+
 /**
  * Synchronise les messages WhatsApp avec la DB
  */
@@ -36,137 +41,227 @@ export async function syncMessages(
   console.log(`📨 Début synchronisation de ${stats.total} messages pour user ${userId}`);
 
   for (const waMsg of whatsappMessages) {
-    try {
-      // Ignorer les messages systèmes ou invalides
-      if (!waMsg.message || !waMsg.key?.remoteJid) {
-        stats.skipped++;
-        continue;
-      }
+  try {
+    // ❌ Skip messages invalides
+    if (!waMsg.message || !waMsg.key?.remoteJid) {
+      stats.skipped++;
+      continue;
+    }
 
-      const whatsappId = waMsg.key.remoteJid;
-      const messageId = waMsg.key.id;
-      if (!messageId) {
-        stats.skipped++;
-        continue;
-      }
-      const fromMe = waMsg.key.fromMe || false;
+    const messageId = waMsg.key.id;
+    const chatJid = waMsg.key.remoteJid;
+    const fromMe = waMsg.key.fromMe || false;
 
-      // Trouver la conversation
-      let conversation = await prisma.conversation.findFirst({
-        where: { userId, whatsappId },
-        select: { id: true },
-      });
+    if (!messageId) {
+      stats.skipped++;
+      continue;
+    }
 
-      if (!conversation) {
-        // Au lieu de skip, on crée la conversation à la volée !
-        const isGroup = whatsappId.includes('@g.us');
-        
-        try {
-            conversation = await prisma.conversation.create({
-                data: {
-                    userId,
-                    whatsappId,
-                    type: isGroup ? 'GROUP' : 'DIRECT',
-                    unreadCount: fromMe ? 0 : 1,  
-                    lastMessageAt: new Date(),
-                    updatedAt: new Date(),
-                },
-                select: { id: true }
-            });
-            console.log(`🆕 Conversation créée à la volée pour ${whatsappId}`);
-        } catch (error) {
-            console.error(`Impossible de créer la conversation pour ${whatsappId}`, error);
-            stats.skipped++;
-            continue; // Si ça plante vraiment, là on passe au suivant
+    // 📅 Timestamp clean
+    const messageDate = waMsg.messageTimestamp
+      ? new Date(Number(waMsg.messageTimestamp) * 1000)
+      : new Date();
+
+    // 👥 participant (groupes)
+    const participantJid = waMsg.participant || waMsg.key.participant || null;
+
+    // 💬 conversation (inchangé)
+    let conversation = await prisma.conversation.findFirst({
+      where: { userId, whatsappId: chatJid },
+      select: { id: true },
+    });
+
+    if (!conversation) {
+      const isGroup = chatJid.includes('@g.us');
+      const isBroadcast = chatJid.includes('status@broadcast');
+
+      try {
+        conversation = await prisma.conversation.create({
+          data: {
+            userId,
+            whatsappId: chatJid,
+            type: isGroup ? 'GROUP' : 'DIRECT',
+            isBroadcast: isBroadcast ? true : false,
+            unreadCount: fromMe ? 0 : 1,
+            lastMessageAt: messageDate,
+          },
+          select: { id: true }
+        });
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          conversation = await prisma.conversation.findFirst({
+            where: { userId, whatsappId: chatJid },
+            select: { id: true }
+          });
+          if (!conversation) continue;
+        } else {
+          stats.skipped++;
+          continue;
         }
       }
+    }
 
-      // Extraire le contenu du message
-      const { content, type, mediaInfo } = extractMessageContent(waMsg);
+    // 🧠 contenu principal
+    const { content, type, mediaInfo } = extractMessageContent(waMsg);
 
-      // Déterminer l'expéditeur
-      const senderId = fromMe ? userId : await getSenderIdFromMessage(waMsg, userId);
+    const senderId = fromMe
+      ? userId
+      : await getSenderIdFromMessage(waMsg, userId);
 
-      // Vérifier si le message existe déjà
-      const existingMessage = await prisma.message.findFirst({
+    // 🔁 context info (IMPORTANT)
+    const contextInfo = waMsg.message?.extendedTextMessage?.contextInfo
+      || waMsg.message?.imageMessage?.contextInfo
+      || waMsg.message?.videoMessage?.contextInfo;
+
+    // 📌 reply
+    let replyToId = null;
+    if (contextInfo?.stanzaId) {
+      const reply = await prisma.message.findFirst({
         where: {
           conversationId: conversation.id,
-          whatsappMessageId: messageId,
+          whatsappMessageId: contextInfo.stanzaId,
         },
+        select: { id: true },
+      });
+      replyToId = reply?.id;
+    }
+
+    // 🔁 forward
+    const isForwarded = contextInfo?.isForwarded || false;
+    const forwardCount = contextInfo?.forwardingScore || 0;
+
+    // ⏳ ephemeral
+    const ephemeralDuration = waMsg.ephemeralDuration || null;
+    const ephemeralStart = waMsg.ephemeralStartTimestamp
+      ? new Date(Number(waMsg.ephemeralStartTimestamp) * 1000)
+      : null;
+
+    // 📦 DATA COMPLET
+    const messageData: any = {
+      whatsappMessageId: messageId,
+      chatJid,
+      senderJid: participantJid || chatJid,
+      participantJid,
+
+      conversationId: conversation.id,
+      senderId,
+
+      type,
+      content,
+
+      rawMessage: waMsg.message, // 🔥 FULL PAYLOAD
+
+      status: fromMe ? getMessageStatus(waMsg) : 'DELIVERY_ACK',
+
+      createdAt: messageDate,
+      whatsappTimestamp: messageDate,
+
+      // flags
+      fromMe,
+      isStarred: waMsg.starred || false,
+      isBroadcast: waMsg.broadcast || false,
+      isMulticast: waMsg.multicast || false,
+
+      // reply / forward
+      replyToId,
+      forwardCount,
+      isForwarded,
+
+      // ephemeral
+      isEphemeral: !!ephemeralDuration,
+      ephemeralDuration,
+      ephemeralStart,
+
+      // metadata
+      stubType: waMsg.messageStubType || null,
+      stubParameters: waMsg.messageStubParameters || [],
+      labels: waMsg.labels || [],
+
+      // media avancé
+      mediaData: waMsg.mediaData || null,
+      mediaCipherSha256: waMsg.mediaCiphertextSha256 || null,
+
+      // business / bot
+      verifiedBizName: waMsg.verifiedBizName || null,
+      botInvokerJid: waMsg.botMessageInvokerJid || null,
+
+      // sécurité
+      messageSecret: waMsg.messageSecret || null,
+
+      // JSON avancé
+      userReceipts: waMsg.userReceipt || [],
+      pollData: waMsg.pollUpdates || null,
+      paymentInfo: waMsg.paymentInfo || null,
+      liveLocation: waMsg.finalLiveLocation || null,
+    };
+
+    // 📎 MEDIA
+    if (mediaInfo?.hasMedia) {
+      const mediaFile = await createMediaFileFromMessage(waMsg, userId, mediaInfo);
+      if (mediaFile) {
+        messageData.mediaFileId = mediaFile.id;
+      }
+    }
+
+    // 🔍 check existant
+    const existingMessage = await prisma.message.findFirst({
+      where: {
+        conversationId: conversation.id,
+        whatsappMessageId: messageId,
+      },
+    });
+
+    if (existingMessage) {
+      await prisma.message.update({
+        where: { id: existingMessage.id },
+        data: messageData,
+      });
+      stats.updated++;
+    } else {
+      const createdMessage = await prisma.message.create({
+        data: messageData,
       });
 
-      const messageData: any = {
-        whatsappMessageId: messageId,
-        conversationId: conversation.id,
-        senderId,
-        type,
-        content,
-        status: fromMe ? getMessageStatus(waMsg) : 'DELIVERED',
-        createdAt: waMsg.messageTimestamp
-          ? new Date(Number(waMsg.messageTimestamp) * 1000)
-          : new Date(),
-        isEdited: false,
-        isDeleted: false,
-        isPinned: waMsg.starred || false,
-        isEphemeral: !!waMsg.message?.ephemeralMessage,
-      };
-
-      // Gérer les médias
-      if (mediaInfo && mediaInfo.hasMedia) {
-        const mediaFile = await createMediaFileFromMessage(waMsg, userId, mediaInfo);
-        if (mediaFile) {
-          messageData.mediaFileId = mediaFile.id;
-        }
-      }
-
-      // Gérer les réponses
-      if (waMsg.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-        const quotedMessageId = waMsg.message.extendedTextMessage.contextInfo.stanzaId;
-        if (quotedMessageId) {
-          const replyTo = await prisma.message.findFirst({
-            where: {
-              conversationId: conversation.id,
-              // whatsappMessageId: quotedMessageId,
-            },
-            select: { id: true },
-          });
-          messageData.replyToId = replyTo?.id;
-        }
-      }
-
-      if (existingMessage) {
-        await prisma.message.update({
-          where: { id: existingMessage.id },
-          data: messageData,
-        });
-        stats.updated++;
-      } else {
-        await prisma.message.create({
-          data: messageData,
-        });
-        stats.created++;
-
-        // Mettre à jour la conversation
-        await prisma.conversation.update({
-          where: { id: conversation.id },
-          data: {
-            lastMessageAt: messageData.createdAt,
-            updatedAt: new Date(),
-          },
+      // 😀 réactions
+      if (waMsg.reactions?.length) {
+        await prisma.reaction.createMany({
+          data: waMsg.reactions.map((r: any) => ({
+            messageId: createdMessage.id,
+            userId: r.key?.participant || '',
+            emoji: r.text || '',
+          })),
+          skipDuplicates: true,
         });
       }
-    } catch (error) {
-      console.error(`❌ Erreur sync message:`, error);
-      errors.push(`Message: ${error}`);
-      stats.failed++;
+
+      stats.created++;
+
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: messageDate,
+          updatedAt: new Date(),
+        },
+      });
     }
+
+  } catch (error) {
+    console.error(`❌ Erreur sync message:`, error);
+    stats.failed++;
   }
+}
 
   const synced = stats.created + stats.updated;
 
   console.log(
     `✅ Synchronisation messages terminée: ${synced}/${stats.total} (${stats.created} créés, ${stats.updated} mis à jour)`
   );
+
+  // 🚨 AFFICHER LES ERREURS PRISMA S'IL Y EN A
+  if (errors.length > 0) {
+    console.error("❌ DÉTAIL DES ERREURS DE SAUVEGARDE MESSAGES :");
+    errors.forEach(e => console.error(e));
+  }
 
   return {
     success: true,
@@ -184,10 +279,25 @@ function extractMessageContent(waMsg: WAMessage): {
   type: string;
   mediaInfo: { hasMedia: boolean; mediaType?: string } | null;
 } {
-  const msg = waMsg.message;
+  let msg = waMsg.message;
 
   if (!msg) {
     return { content: null, type: 'SYSTEM', mediaInfo: null };
+  }
+
+
+  // 🛠️ LE FAMEUX DÉBALLAGE BAILEYS : On retire les couches de protection
+  if (msg?.ephemeralMessage?.message) {
+    msg = msg.ephemeralMessage.message;
+  }
+  if (msg?.viewOnceMessage?.message) {
+    msg = msg?.viewOnceMessage.message;
+  }
+  if (msg?.viewOnceMessageV2?.message) {
+    msg = msg?.viewOnceMessageV2.message;
+  }
+  if (msg?.documentWithCaptionMessage?.message) {
+    msg = msg?.documentWithCaptionMessage.message;
   }
 
   // Message texte
@@ -249,6 +359,10 @@ function extractMessageContent(waMsg: WAMessage): {
     };
   }
 
+  if (msg.reactionMessage) {
+    return { content: msg.reactionMessage.text ?? null, type: 'REACTION', mediaInfo: null };
+  }
+
   // Localisation
   if (msg.locationMessage) {
     const location = {
@@ -298,15 +412,19 @@ function getMessageStatus(waMsg: WAMessage): string {
 
   switch (status) {
     case 0:
-      return 'SENDING';
+      return 'ERROR';
     case 1:
-      return 'SENT';
+      return 'PENDING';
     case 2:
-      return 'DELIVERED';
+      return 'SERVER_ACK';
     case 3:
+      return 'DELIVERY_ACK';
+    case 4:
       return 'READ';
+    case 5:
+      return 'PLAYED';
     default:
-      return 'SENT';
+      return 'PENDING';
   }
 }
 
@@ -317,16 +435,31 @@ async function getSenderIdFromMessage(
   waMsg: WAMessage,
   userId: string
 ): Promise<string> {
-  const participant = waMsg.participant || waMsg.key?.participant;
-  const remoteJid = waMsg.key?.remoteJid;
+  const key = waMsg.key;
 
-  if (!participant && !remoteJid) {
+  // Si le message est envoyé par nous-même
+  if (key?.fromMe) {
     return userId;
   }
 
-  const senderPhone = (participant || remoteJid)!.split('@')[0].split(':')[0];
+  let senderJid: string | undefined;
 
-  // Chercher le contact
+  // Cas des groupes → participant contient l’expéditeur réel
+  if (key?.remoteJid?.endsWith('@g.us')) {
+    senderJid = key?.participant || waMsg.participant || '';
+  } else {
+    // Cas des chats privés
+    senderJid = key?.remoteJid || '';
+  }
+
+  if (!senderJid) {
+    return userId;
+  }
+
+  // Nettoyage du numéro (enlève @s.whatsapp.net, :device, etc.)
+  const senderPhone = senderJid.split('@')[0].split(':')[0];
+
+  // Recherche du contact
   const contact = await prisma.contact.findFirst({
     where: {
       userId,
@@ -341,7 +474,7 @@ async function getSenderIdFromMessage(
 /**
  * Crée un fichier média depuis un message
  */
-async function createMediaFileFromMessage(
+export async function createMediaFileFromMessage(
   waMsg: WAMessage,
   userId: string,
   mediaInfo: { mediaType?: string }
@@ -351,46 +484,117 @@ async function createMediaFileFromMessage(
     let mediaMessage: any;
     let fileName: string;
     let mimeType: string;
+    let fileHash: string;
+    let fileEncSha: string;
+    let mediaKey: string;
+    let originalPath: string;
+    let url: string;
+    let viewOnce: boolean = false;
+    let width: number | undefined;
+    let height: number | undefined;
     let fileSize: number = 0;
+    let duration: number | undefined;
+    let waveForm: string | undefined;
+
 
     if (msg?.imageMessage) {
       mediaMessage = msg.imageMessage;
       fileName = `image_${Date.now()}.jpg`;
       mimeType = mediaMessage.mimetype || 'image/jpeg';
+      fileHash = bufferToBase64(mediaMessage.fileSha256) || '';
+      fileEncSha = bufferToBase64(mediaMessage.fileEncSha256) || '';
+      mediaKey = bufferToBase64(mediaMessage.mediaKey) || '';
+      originalPath = mediaMessage.directPath || '';
+      url = mediaMessage.staticUrl || '';
+      viewOnce = mediaMessage.viewOnce || false;
       fileSize = Number(mediaMessage.fileLength) || 0;
+      width = mediaMessage.width;
+      height = mediaMessage.height;
     } else if (msg?.videoMessage) {
       mediaMessage = msg.videoMessage;
       fileName = `video_${Date.now()}.mp4`;
       mimeType = mediaMessage.mimetype || 'video/mp4';
+      mediaKey = bufferToBase64(mediaMessage.mediaKey) || '';
+      fileEncSha = bufferToBase64(mediaMessage.fileEncSha256) || '';
+      fileHash = bufferToBase64(mediaMessage.fileSha256) || '';
+      originalPath = mediaMessage.directPath || '';
+      url = mediaMessage.staticUrl || '';
+      viewOnce = mediaMessage.viewOnce || false;
       fileSize = Number(mediaMessage.fileLength) || 0;
+      width = mediaMessage.width;
+      height = mediaMessage.height;
+      duration = mediaMessage.seconds;
     } else if (msg?.audioMessage) {
       mediaMessage = msg.audioMessage;
       fileName = `audio_${Date.now()}.ogg`;
       mimeType = mediaMessage.mimetype || 'audio/ogg';
+      mediaKey = bufferToBase64(mediaMessage.mediaKey) || '';
+      fileEncSha = bufferToBase64(mediaMessage.fileEncSha256) || '';
+      fileHash = bufferToBase64(mediaMessage.fileSha256) || '';
+      originalPath = mediaMessage.directPath || '';
+      url = mediaMessage.staticUrl || '';
+      viewOnce = mediaMessage.viewOnce || false;
       fileSize = Number(mediaMessage.fileLength) || 0;
+      duration = mediaMessage.seconds;
+      waveForm = bufferToBase64(mediaMessage.waveform) || '';
+
     } else if (msg?.documentMessage) {
       mediaMessage = msg.documentMessage;
       fileName = mediaMessage.fileName || `document_${Date.now()}`;
       mimeType = mediaMessage.mimetype || 'application/octet-stream';
+      mediaKey = bufferToBase64(mediaMessage.mediaKey) || '';
+      fileEncSha = bufferToBase64(mediaMessage.fileEncSha256) || '',
+        fileHash = bufferToBase64(mediaMessage.fileSha256) || '';
+      originalPath = mediaMessage.directPath || '';
+      url = mediaMessage.staticUrl || '';
       fileSize = Number(mediaMessage.fileLength) || 0;
     } else {
       return null;
     }
 
-    // Note: L'URL sera générée lors du téléchargement réel du média
-    const mediaFile = await prisma.mediaFile.create({
-      data: {
-        userId,
-        fileName,
-        fileSize,
-        mimeType,
-        url: '', // À remplir après téléchargement
-        type: (mediaInfo.mediaType as any) || 'DOCUMENT',
-        storagePath: `whatsapp_media/${userId}/${fileName}`,
-      },
-    });
+    if (fileHash && fileHash !== '') {
+        const existingMedia = await prisma.mediaFile.findFirst({
+            where: { fileHash: fileHash }
+        });
 
-    return mediaFile;
+        if (existingMedia) {
+            // Le média (ex: sticker) existe déjà en base, on le réutilise !
+            return existingMedia;
+        }
+    }
+
+    // Note: L'URL sera générée lors du téléchargement réel du média
+    try {
+        // On crée le nouveau média
+        const mediaFile = await prisma.mediaFile.create({
+          data: {
+            userId,
+            fileName,
+            fileSize,
+            mimeType,
+            waveForm,
+            width,
+            height,
+            mediaKey,
+            fileHash,
+            fileEncSha,
+            originalPath,
+            url,
+            viewOnce,
+            duration,
+            type: (mediaInfo.mediaType as any) || 'DOCUMENT',
+            storagePath: `whatsapp_media/${userId}/${fileName}`,
+          },
+        });
+        return mediaFile;
+    } catch (error: any) {
+        // Si deux messages envoient la même image EXACTEMENT en même temps
+        if (error.code === 'P2002') {
+            return await prisma.mediaFile.findFirst({ where: { fileHash: fileHash } });
+        }
+        console.error('❌ Erreur création média:', error);
+        return null;
+    }
   } catch (error) {
     console.error('❌ Erreur création média:', error);
     return null;
@@ -402,11 +606,11 @@ async function createMediaFileFromMessage(
  */
 export async function updateMessageStatus(
   messageId: string,
-  status: 'DELIVERED' | 'READ'
+  status: 'DELIVERY_ACK' | 'READ'
 ): Promise<void> {
   const updateData: any = { status, updatedAt: new Date() };
 
-  if (status === 'DELIVERED') {
+  if (status === 'DELIVERY_ACK') {
     updateData.deliveredAt = new Date();
   } else if (status === 'READ') {
     updateData.readAt = new Date();

@@ -4,7 +4,9 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  
 }
 
 model User {
@@ -37,6 +39,7 @@ model User {
   lastSyncAt          DateTime?
   accounts            Account[]
   apiKeys             ApiKey[]
+  broadcasts          Broadcast[]
   auditLogs           AuditLog[]
   bots                Bot[]
   initiatedCalls      Call[]             @relation("CallInitiator")
@@ -60,10 +63,11 @@ model User {
   voiceNotes          VoiceNote[]
   calls               Call[]             @relation("CallParticipants")
 
-  whatsappConnected Boolean @default(false)
-  lastWhatsappSync DateTime?
-  whatsappStatus String @default("offline")
-  whatsappId  String? @unique
+  whatsappConnected Boolean   @default(false)
+  WhatsAppSession   WhatsAppSession[]
+  lastWhatsappSync  DateTime?
+  whatsappStatus    String    @default("offline")
+  whatsappId        String?   @unique
   whatsappAbout     String?
 
   @@index([email])
@@ -92,6 +96,7 @@ model Account {
   @@index([userId])
 }
 
+// Ton modèle Session amélioré (pour l'accès à ton tableau de bord)
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -102,9 +107,34 @@ model Session {
   deviceId     String?
   device       Device?  @relation(fields: [deviceId], references: [id])
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Nouveaux champs utiles
+  isActive     Boolean  @default(true)
+  lastActive   DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   @@index([userId])
   @@index([deviceId])
+}
+
+// 📦 NOUVEAU MODÈLE : Pour stocker les clés Baileys
+model WhatsAppSession {
+  id        String   @id @default(cuid())
+  sessionId String   // Identifiant de la session WhatsApp
+  userId    String   // Référence vers l'utilisateur
+  dataId    String   // Type de donnée (creds, app-state-sync-key-*, etc.)
+  data      String   @db.Text // Données JSON stringifiées
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation vers l'utilisateur
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Index composé unique pour éviter les doublons
+  @@unique([sessionId, dataId], name: "sessionId_dataId")
+  @@index([userId])
+  @@index([sessionId])
+  @@map("whatsapp_sessions")
 }
 
 model VerificationToken {
@@ -132,11 +162,11 @@ model Device {
   createdAt   DateTime   @default(now())
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessions    Session[]
-  updatedAt DateTime @updatedAt
+  updatedAt   DateTime   @updatedAt
 
+  @@unique([userId, deviceType])
   @@index([userId])
   @@index([deviceToken])
-  @@unique([userId, deviceType])
 }
 
 model Conversation {
@@ -162,15 +192,83 @@ model Conversation {
   lastMessageAt     DateTime?
   lastReadAt        DateTime?
   unreadCount       Int              @default(0)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  deletedAt         DateTime?
-  contact           Contact?         @relation(fields: [contactId], references: [id])
-  folder            Folder?          @relation(fields: [folderId], references: [id])
-  group             Group?           @relation(fields: [groupId], references: [id])
-  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  drafts            Draft[]
-  messages          Message[]
+
+  // === NOUVEAUX CHAMPS ===
+
+  // Identifiants / JID
+  newJid String?
+  oldJid String?
+  pnJid  String?
+  lidJid String?
+
+  // timestamps (long -> BigInt ou DateTime)
+  lastMsgTimestamp             BigInt?
+  conversationTimestamp        BigInt?
+  ephemeralSettingTimestamp    BigInt?
+  tcTokenTimestamp             BigInt?
+  tcTokenSenderTimestamp       BigInt?
+  limitSharingSettingTimestamp BigInt?
+  createdAtTimestamp           BigInt?
+
+  // États de conversation
+  readOnly                  Boolean?
+  archived                  Boolean?
+  notSpam                   Boolean?
+  markedAsUnread            Boolean?
+  support                   Boolean?
+  suspended                 Boolean?
+  terminated                Boolean?
+  locked                    Boolean?
+  isParentGroup             Boolean?
+  isDefaultSubgroup         Boolean?
+  shareOwnPn                Boolean?
+  pnhDuplicateLidThread     Boolean?
+  limitSharing              Boolean?
+  limitSharingInitiatedByMe Boolean?
+
+  // Comptages
+  unreadMentionCount Int?
+  commentsCount      Int?
+
+  // Éphémère / disparition
+  ephemeralExpiration Int?
+  disappearingMode    Json? // ou enum si tu veux le typer
+
+  // Identité / sécurité
+  pHash                     String?
+  contactPrimaryIdentityKey Bytes?
+  tcToken                   Bytes?
+
+  // Groupe / hiérarchie
+  parentGroupId String?
+  accountLid    String?
+
+  // Utilisateurs / création
+  createdBy String?
+
+  // Limites / règles
+  limitSharingTrigger String?
+
+  // Autres
+  username      String?
+  lidOriginType String?
+
+  // media / visuel
+  wallpaper       Json?
+  mediaVisibility String?
+
+  // flags système
+  systemMessageToInsert    Json?
+  endOfHistoryTransfer     Boolean?
+  endOfHistoryTransferType String?
+
+  // relations existantes
+  contact  Contact?  @relation(fields: [contactId], references: [id])
+  folder   Folder?   @relation(fields: [folderId], references: [id])
+  group    Group?    @relation(fields: [groupId], references: [id])
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drafts   Draft[]
+  messages Message[]
 
   @@unique([userId, contactId])
   @@unique([userId, groupId])
@@ -185,53 +283,122 @@ model Conversation {
 }
 
 model Message {
-  id                 String        @id @default(cuid())
-  conversationId     String
-  senderId           String
-  type               MessageType
-  content            String?
-  mediaFileId        String?
-  voiceNoteId        String?
-  replyToId          String?
-  forwardedFromId    String?
-  forwardCount       Int           @default(0)
-  status             MessageStatus @default(SENT)
-  deliveredAt        DateTime?
-  readAt             DateTime?
-  isEdited           Boolean       @default(false)
-  editedAt           DateTime?
-  originalContent    String?
-  editHistory        Json?
-  isDeleted          Boolean       @default(false)
-  deletedAt          DateTime?
-  deletedFor         String[]
-  isPinned           Boolean       @default(false)
-  isEphemeral        Boolean       @default(false)
-  ephemeralExpiresAt DateTime?
-  metadata           Json?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-  expiresAt          DateTime?
-  conversation       Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  forwardedFrom      Message?      @relation("MessageForwards", fields: [forwardedFromId], references: [id])
-  forwards           Message[]     @relation("MessageForwards")
-  mediaFile          MediaFile?    @relation(fields: [mediaFileId], references: [id])
-  replyTo            Message?      @relation("MessageReplies", fields: [replyToId], references: [id])
-  replies            Message[]     @relation("MessageReplies")
-  sender             User          @relation(fields: [senderId], references: [id])
-  voiceNote          VoiceNote?    @relation(fields: [voiceNoteId], references: [id])
-  reactions          Reaction[]
-  whatsappMessageId String @unique
-  whatsappTimestamp DateTime
+  id String @id @default(cuid())
 
-  @@index([conversationId])
-  @@index([senderId])
-  @@index([createdAt])
-  @@index([status])
-  @@index([ephemeralExpiresAt])
-  @@index([expiresAt])
+  // 🔗 WhatsApp core
+  whatsappMessageId String  @unique
+  chatJid           String // ex: 2376xxxx@s.whatsapp.net ou group@g.us
+  senderJid         String
+  fromMe            Boolean
+
+  // 👥 contexte
+  participantJid String? // pour groupes
+
+  // 🧠 contenu
+  type       MessageType
+  content    String?
+  rawMessage Json? // proto.IMessage complet
+
+  // 📎 media
+  mediaFileId       String?
+  mediaData         Json? // proto.IMediaData
+  mediaCipherSha256 Bytes?
+
+  // 🎤 voice
+  voiceNoteId String?
+
+  // 🔁 reply / forward
+  replyToId       String?
+  forwardedFromId String?
+  forwardCount    Int     @default(0)
+
+  // ⭐ flags WhatsApp
+  isStarred   Boolean @default(false)
+  isBroadcast Boolean @default(false)
+  isMulticast Boolean @default(false)
+
+  // 📊 status
+  status      MessageStatus @default(SENT)
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  // ✏️ édition
+  isEdited        Boolean   @default(false)
+  editedAt        DateTime?
+  originalContent String?
+  editHistory     Json?
+
+  // 🗑 suppression
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
+  deletedFor String[]
+
+  // 📌 pin
+  isPinned Boolean   @default(false)
+  pinnedAt DateTime?
+
+  // ⏳ ephemeral
+  isEphemeral        Boolean   @default(false)
+  ephemeralDuration  Int?
+  ephemeralStart     DateTime?
+  ephemeralExpiresAt DateTime?
+
+  // 🧾 metadata avancé
+  stubType       String?
+  stubParameters String[]
+  labels         String[]
+
+  // 💰 paiement
+  paymentInfo Json?
+
+  // 📍 live location
+  liveLocation Json?
+
+  // 📊 sondages
+  pollData Json?
+
+  // 🤖 bot / business
+  isBiz           Boolean?
+  verifiedBizName String?
+  botInvokerJid   String?
+
+  // 🔐 sécurité
+  messageSecret Bytes?
+
+  // 👁 lecture avancée
+  userReceipts Json? // proto.IUserReceipt[]
+
+  // 😀 réactions
+  reactions Reaction[]
+
+  // 🔗 relations internes
+  conversationId String
+  senderId       String
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  // self relations
+  replyTo  Message?         @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies  Message[]        @relation("MessageReplies")
+  receipts MessageReceipt[]
+
+  forwardedFrom Message?  @relation("MessageForwards", fields: [forwardedFromId], references: [id])
+  forwards      Message[] @relation("MessageForwards")
+
+  mediaFile MediaFile? @relation(fields: [mediaFileId], references: [id])
+  voiceNote VoiceNote? @relation(fields: [voiceNoteId], references: [id])
+
+  // ⏱ timestamps
+  whatsappTimestamp DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  expiresAt         DateTime?
+
+  @@index([chatJid])
+  @@index([senderJid])
   @@index([conversationId, createdAt])
-  @@index([senderId, createdAt])
+  @@index([status])
 }
 
 model ScheduledMessage {
@@ -259,6 +426,30 @@ model ScheduledMessage {
   @@index([userId])
   @@index([scheduledFor])
   @@index([status])
+}
+
+model MessageReceipt {
+  id        String    @id @default(cuid())
+  messageId String
+  userJid   String
+  status    String // delivered, read
+  timestamp DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
 }
 
 model Draft {
@@ -300,50 +491,147 @@ model Contact {
   @@index([contactUserId])
 }
 
+model Broadcast {
+  id String @id @default(cuid())
+
+  // 👤 owner (toi)
+  userId String
+
+  // 🔗 WhatsApp
+  whatsappMessageId String @unique
+  senderJid         String // qui a posté le status
+  chatJid           String // souvent "status@broadcast"
+
+  // 🧠 contenu
+  type       MessageType
+  content    String?
+  rawMessage Json?
+
+  // 📎 media
+  mediaFileId String?
+  mediaData   Json?
+
+  // 👀 viewers
+  viewers   String[] // liste des JID qui ont vu
+  viewCount Int      @default(0)
+
+  // ⏳ durée
+  isEphemeral Boolean   @default(true)
+  expiresAt   DateTime?
+
+  // 📊 metadata
+  caption  String?
+  mimeType String?
+  fileSize Int?
+  duration Int?
+
+  // timestamps
+  whatsappTimestamp DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // relations
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaFile MediaFile? @relation(fields: [mediaFileId], references: [id])
+
+  @@index([userId])
+  @@index([senderJid])
+  @@index([whatsappTimestamp])
+  @@index([userId, createdAt])
+}
+
 model Group {
-  id                  String         @id @default(cuid())
-  name                String
-  description         String?
-  avatar              String?
-  ownerId             String
-  maxMembers          Int            @default(256)
-  isPublic            Boolean        @default(false)
-  inviteLink          String?        @unique
-  onlyAdminsCanPost   Boolean        @default(false)
-  onlyAdminsCanEdit   Boolean        @default(false)
-  membersCanAddOthers Boolean        @default(true)
-  ephemeralEnabled    Boolean        @default(false)
-  ephemeralDuration   Int?
-  moderationEnabled   Boolean        @default(false)
-  bannedWords         String[]
-  autoDeleteSpam      Boolean        @default(false)
-  totalMessages       Int            @default(0)
-  activeMembers       Int            @default(0)
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  deletedAt           DateTime?
-  conversations       Conversation[]
-  owner               User           @relation("GroupOwner", fields: [ownerId], references: [id])
-  members             GroupMember[]
-  polls               Poll[]
+  id String @id @default(cuid())
+
+  // WhatsApp
+  whatsappId     String  @unique // id du groupe (ex: 12345@g.us)
+  addressingMode String? // 'lid' ou 'pn'
+
+  // Infos principales
+  name        String // correspond à "subject"
+  description String? // desc
+  avatar      String?
+
+  // Owner
+  ownerId          String
+  ownerJid         String? // owner WhatsApp (ex: 2376xxx@s.whatsapp.net)
+  ownerPhoneNumber String? // ownerPn
+  ownerCountryCode String? // owner_country_code
+
+  // Subject info
+  subjectOwner   String?
+  subjectOwnerPn String?
+  subjectTime    DateTime?
+
+  // Description metadata
+  descOwner   String?
+  descOwnerPn String?
+  descId      String?
+  descTime    DateTime?
+
+  // Group settings
+  onlyAdminsCanEdit   Boolean @default(false) // restrict
+  onlyAdminsCanPost   Boolean @default(false) // announce
+  membersCanAddOthers Boolean @default(true) // memberAddMode
+  joinApprovalMode    Boolean @default(false)
+
+  // Community
+  isCommunity         Boolean @default(false)
+  isCommunityAnnounce Boolean @default(false)
+  linkedParent        String? // id communauté
+
+  // Participants
+  maxMembers Int  @default(256)
+  size       Int? // nombre réel WhatsApp
+
+  // Ephemeral
+  ephemeralEnabled  Boolean @default(false)
+  ephemeralDuration Int?
+
+  // Invite
+  inviteLink String? @unique
+  inviteCode String?
+
+  // Moderation (tes features custom)
+  moderationEnabled Boolean  @default(false)
+  bannedWords       String[]
+  autoDeleteSpam    Boolean  @default(false)
+
+  // Stats
+  totalMessages Int @default(0)
+  activeMembers Int @default(0)
+
+  // Meta
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  owner         User           @relation("GroupOwner", fields: [ownerId], references: [id])
+  members       GroupMember[]
+  conversations Conversation[]
+  polls         Poll[]
 
   @@index([ownerId])
   @@index([inviteLink])
+  @@index([whatsappId])
 }
 
 model GroupMember {
-  id         String    @id @default(cuid())
-  groupId    String
-  userId     String
-  role       GroupRole @default(MEMBER)
-  canPost    Boolean   @default(true)
-  canInvite  Boolean   @default(true)
-  isMuted    Boolean   @default(false)
-  mutedUntil DateTime?
-  joinedAt   DateTime  @default(now())
-  leftAt     DateTime?
-  group      Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  groupId      String
+  userId       String
+  role         GroupRole @default(MEMBER)
+  isAdmin      Boolean   @default(false)
+  isSuperAdmin Boolean   @default(false)
+  canPost      Boolean   @default(true)
+  canInvite    Boolean   @default(true)
+  isMuted      Boolean   @default(false)
+  mutedUntil   DateTime?
+  joinedAt     DateTime  @default(now())
+  leftAt       DateTime?
+  group        Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, userId])
   @@index([groupId])
@@ -357,18 +645,23 @@ model MediaFile {
   fileSize          Int
   mimeType          String
   url               String
-  thumbnailUrl      String?
+  waveForm          String?
   width             Int?
   height            Int?
   duration          Int?
   type              MediaType
+  viewOnce          Boolean            @default(false)
+  fileHash          String?            @unique
+  fileEncSha        String?            @unique
+  mediaKey          String?
   isCompressed      Boolean            @default(false)
-  originalUrl       String?
+  originalPath      String?
   storageProvider   String             @default("s3")
   storagePath       String
   createdAt         DateTime           @default(now())
   expiresAt         DateTime?
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  broadcasts        Broadcast[]
   messages          Message[]
   scheduledMessages ScheduledMessage[]
 
@@ -392,20 +685,6 @@ model VoiceNote {
   messages      Message[]
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-}
-
-model Reaction {
-  id        String   @id @default(cuid())
-  messageId String
-  userId    String
-  emoji     String
-  createdAt DateTime @default(now())
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([messageId, userId, emoji])
-  @@index([messageId])
   @@index([userId])
 }
 
@@ -650,11 +929,13 @@ enum MessageType {
 }
 
 enum MessageStatus {
-  SENDING
-  SENT
-  DELIVERED
+  ERROR
+  PENDING
+  SERVER_ACK
+  DELIVERY_ACK
   READ
-  FAILED
+  PLAYED
+  SENT
 }
 
 enum MediaType {
