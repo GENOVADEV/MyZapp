@@ -9,6 +9,9 @@
     "lint": "next eslint",
     "postinstall": "npx prisma generate"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@prisma/client": "6.19.2",
     "@radix-ui/react-avatar": "^1.1.11",
