@@ -125,7 +125,7 @@ export async function usePrismaAuthState(sessionId: string, userId: string) {
                 
                 for (const id of ids) {
                     const key = `${type}-${id}`;
-                    const value = await readData(key);
+                    let value = await readData(key);
                     if (value) {
                         if (type === 'app-state-sync-key') {
                             value = proto.Message.AppStateSyncKeyData.fromObject(value);
@@ -169,6 +169,5 @@ export async function usePrismaAuthState(sessionId: string, userId: string) {
         saveCreds,
         removeData,
         removeAllData
-        
     };
 }
