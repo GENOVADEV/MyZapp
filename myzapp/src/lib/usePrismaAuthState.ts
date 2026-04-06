@@ -1,5 +1,5 @@
 // src/lib/usePrismaAuthState.ts
-import { AuthenticationState, initAuthCreds } from '@whiskeysockets/baileys';
+import { AuthenticationState, BufferJSON, initAuthCreds, proto } from '@whiskeysockets/baileys';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -12,10 +12,8 @@ export async function usePrismaAuthState(sessionId: string, userId: string) {
      */
     const writeData = async (dataId: string, data: any): Promise<void> => {
         try {
-            // Convertir les BigInt en String pour JSON
-            const stringifiedData = JSON.stringify(data, (_, value) =>
-                typeof value === 'bigint' ? value.toString() : value
-            );
+            // Convertir 
+            const stringifiedData = JSON.stringify(data, BufferJSON.replacer);
 
             await prisma.whatsAppSession.upsert({
                 where: {
@@ -62,7 +60,7 @@ export async function usePrismaAuthState(sessionId: string, userId: string) {
 
             if (!record) return null;
 
-            return JSON.parse(record.data);
+            return JSON.parse(record.data as string, BufferJSON.reviver);
         } catch (error) {
             console.error(`❌ [${sessionId}] Erreur lecture ${dataId}:`, error);
             return null;
@@ -129,6 +127,9 @@ export async function usePrismaAuthState(sessionId: string, userId: string) {
                     const key = `${type}-${id}`;
                     const value = await readData(key);
                     if (value) {
+                        if (type === 'app-state-sync-key') {
+                            value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                        }
                         data[id] = value;
                     }
                 }
