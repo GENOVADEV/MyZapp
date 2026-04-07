@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/auth';
+import {serializeBigInt} from '@/lib/serializer';
+
 
 export async function GET(req: Request) {
   try {
@@ -49,23 +51,18 @@ export async function GET(req: Request) {
     ]);
 
     const totalPages = Math.ceil(totalConversations / limit);
-    
-    // ⚠️ CORRECTION ICI : Conversion sécurisée des BigInt en String pour le JSON
-    const safeData = JSON.stringify({
-      conversations,
-      pagination: {
-        page,
-        limit,
-        total: totalConversations,
-        pages: totalPages,
-      }
-    }, (_, value) => typeof value === 'bigint' ? value.toString() : value);
 
-    return new NextResponse(safeData, {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-
+    return NextResponse.json(
+  serializeBigInt({
+    conversations,
+    pagination: {
+      page,
+      limit,
+      total: totalConversations,
+      pages: totalPages,
+    }
+  })
+);
   } catch (error) {
     console.error('❌ Erreur API Conversations:', error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

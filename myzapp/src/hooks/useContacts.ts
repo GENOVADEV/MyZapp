@@ -81,7 +81,6 @@ export function useContacts(filters?: ContactFilters) {
       params.append('page', page.toString());
       params.append('limit', limit.toString());
       
-      if (filters?.favorites !== undefined) params.append('favorites', filters.favorites.toString());
       if (filters?.blocked !== undefined) params.append('blocked', filters.blocked.toString());
       if (filters?.search) params.append('search', filters.search);
 

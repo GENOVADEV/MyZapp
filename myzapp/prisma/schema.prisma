@@ -474,7 +474,6 @@ model Contact {
   email         String?
   avatar        String?
   bio           String?
-  isFavorite    Boolean        @default(false)
   isBlocked     Boolean        @default(false)
   notes         String?
   customFields  Json?
