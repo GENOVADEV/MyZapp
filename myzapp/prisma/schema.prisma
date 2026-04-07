@@ -234,8 +234,8 @@ model Conversation {
 
   // Identité / sécurité
   pHash                     String?
-  contactPrimaryIdentityKey Bytes?
-  tcToken                   Bytes?
+  contactPrimaryIdentityKey String?
+  tcToken                   String?
 
   // Groupe / hiérarchie
   parentGroupId String?
@@ -300,7 +300,7 @@ model Message {
   // 📎 media
   mediaFileId       String?
   mediaData         Json? // proto.IMediaData
-  mediaCipherSha256 Bytes?
+  mediaCipherSha256 String?
 
   // 🎤 voice
   voiceNoteId String?
@@ -325,6 +325,7 @@ model Message {
   editedAt        DateTime?
   originalContent String?
   editHistory     Json?
+  isForwarded     Boolean   @default(false)
 
   // 🗑 suppression
   isDeleted  Boolean   @default(false)
@@ -361,7 +362,7 @@ model Message {
   botInvokerJid   String?
 
   // 🔐 sécurité
-  messageSecret Bytes?
+  messageSecret String?
 
   // 👁 lecture avancée
   userReceipts Json? // proto.IUserReceipt[]

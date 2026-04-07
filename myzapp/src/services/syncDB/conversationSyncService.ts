@@ -82,11 +82,29 @@ export async function syncConversations(
     });
 
     // ===== HELPERS =====
-    const toDate = (val?: number | Long | null) =>
-      val ? new Date(Number(val)) : undefined;
+    // ===== HELPERS (CORRIGÉS) =====
+    // Cette fonction extrait la vraie valeur numérique même si Baileys renvoie un objet "Long"
+    const extractNumber = (val: any): number | undefined => {
+      if (val === null || val === undefined) return undefined;
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string') return Number(val);
+      if (typeof val === 'object') {
+        if ('toNumber' in val && typeof val.toNumber === 'function') return val.toNumber();
+        if ('low' in val) return val.low; // Extraction depuis l'objet Long de Baileys
+      }
+      return undefined;
+    };
 
-    const toBigInt = (val?: number | Long | null) =>
-      val ? BigInt(val.toString()) : undefined;
+    const toDate = (val: any) => {
+      const num = extractNumber(val);
+      // Baileys donne souvent le timestamp en secondes, on multiplie par 1000 pour Date()
+      return num ? new Date(num * 1000) : undefined;
+    };
+
+    const toBigInt = (val: any) => {
+      const num = extractNumber(val);
+      return num ? BigInt(num) : undefined;
+    };
 
     // ===== DATA =====
     conversationData = {
@@ -250,11 +268,17 @@ async function syncGroupFromChat(
     }
 
     // ===== HELPERS =====
-    const toDate = (val?: number | Long | null) =>
-      val ? new Date(Number(val) * 1000) : undefined;
+    const toDate = (val: any) => {
+      const num = extractNumber(val);
+      // Baileys donne souvent le timestamp en secondes, on multiplie par 1000 pour Date()
+      return num ? new Date(num * 1000) : undefined;
+    };
 
-    const toPhone = (jid?: string | null) =>
+    const toPhone = (jid?: string | null) => {
       jid ? jid.split('@')[0]?.split(':')[0] : undefined;
+      const num = extractNumber(jid);
+      return num ? num.toString() : undefined;
+    }
 
     // ===== OWNER =====
     const ownerJid = waChat.owner || waChat.subjectOwner;

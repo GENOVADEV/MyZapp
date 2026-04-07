@@ -49,10 +49,9 @@ export async function GET(req: Request) {
     ]);
 
     const totalPages = Math.ceil(totalConversations / limit);
-    console.log(`Fetched conversations for user ${user.userId}: page ${page}/${totalPages}, total ${totalConversations}`);
-
-    // Structure exacte attendue par ton hook
-    return NextResponse.json({
+    
+    // ⚠️ CORRECTION ICI : Conversion sécurisée des BigInt en String pour le JSON
+    const safeData = JSON.stringify({
       conversations,
       pagination: {
         page,
@@ -60,6 +59,11 @@ export async function GET(req: Request) {
         total: totalConversations,
         pages: totalPages,
       }
+    }, (_, value) => typeof value === 'bigint' ? value.toString() : value);
+
+    return new NextResponse(safeData, {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
