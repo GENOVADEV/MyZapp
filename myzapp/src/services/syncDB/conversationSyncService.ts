@@ -268,6 +268,18 @@ async function syncGroupFromChat(
     }
 
     // ===== HELPERS =====
+    // Cette fonction extrait la vraie valeur numérique même si Baileys renvoie un objet "Long"
+    const extractNumber = (val: any): number | undefined => {
+      if (val === null || val === undefined) return undefined;
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string') return Number(val);
+      if (typeof val === 'object') {
+        if ('toNumber' in val && typeof val.toNumber === 'function') return val.toNumber();
+        if ('low' in val) return val.low; // Extraction depuis l'objet Long de Baileys
+      }
+      return undefined;
+    };
+    
     const toDate = (val: any) => {
       const num = extractNumber(val);
       // Baileys donne souvent le timestamp en secondes, on multiplie par 1000 pour Date()
