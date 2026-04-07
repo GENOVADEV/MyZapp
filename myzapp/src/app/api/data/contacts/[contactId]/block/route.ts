@@ -4,14 +4,11 @@ import { getUserFromToken } from '@/lib/auth';
 // BINGO ! Tu importes directement tes fonctions
 import { updateBlockStatus, getUserSessions } from '@/lib/server-ws'; 
 
-export async function PATCH(
-  req: Request, 
-  { params }: { params: Promise<{ contactId: string }> } // Syntax rectifiée ici
-) {
-    try {
+export async function PATCH(req: Request, { params }: { params: Promise<{ contactId: string }> }) {
+  const resolvedParams = await params; // 2. On attend la résolution de la Promesse
+  const contactId = resolvedParams.contactId;
+  try {
     const user = await getUserFromToken();
-    const { contactId } = await params;
-
     const contact = await prisma.contact.findUnique({ where: { id: contactId } });
     const newBlockStatus = !contact?.isBlocked;
     const action = newBlockStatus ? 'block' : 'unblock';

@@ -211,7 +211,6 @@ export async function syncConversations(
       createdBy: waChat.createdBy || undefined,
       createdAtTimestamp: toBigInt(waChat.createdAt),
 
-      updatedAt: new Date(),
     };
 
     // ===== UPSERT =====
@@ -350,7 +349,6 @@ async function syncGroupFromChat(
 
       // 🔹 META
       createdAt: creation,
-      updatedAt: new Date(),
     };
 
     // ===== UPSERT =====
@@ -446,7 +444,6 @@ async function syncGroupFromChat(
 //         : undefined,
 //       ephemeralEnabled: !!waChat.ephemeralExpiration,
 //       ephemeralDuration: waChat.ephemeralExpiration || undefined,
-//       updatedAt: new Date(),
 //     };
 
 //     if (existingConversation) {
@@ -482,7 +479,6 @@ export async function updateUnreadCount(
     },
     data: {
       unreadCount,
-      updatedAt: new Date(),
     },
   });
 }
@@ -502,7 +498,6 @@ export async function markConversationAsRead(
     data: {
       unreadCount: 0,
       lastReadAt: new Date(),
-      updatedAt: new Date(),
     },
   });
 }

@@ -1,6 +1,0 @@
-{"timestamp":"2026-03-22T00:12:10.780Z","direction":"IN","sender":"237655685452","messageType":"IMAGE","isViewOnce":false,"content":"[Média]"}
-{"timestamp":"2026-03-22T00:17:31.786Z","direction":"IN","sender":"237655685452","messageType":"TEXT","isViewOnce":false,"content":"ping"}
-{"timestamp":"2026-03-22T00:17:32.279Z","direction":"OUT","sender":"237655685452","messageType":"TEXT","isViewOnce":false,"content":"Pong!"}
-{"timestamp":"2026-03-22T00:18:31.013Z","direction":"IN","sender":"237655685452","messageType":"TEXT","isViewOnce":false,"content":"yo"}
-{"timestamp":"2026-03-22T00:18:35.531Z","direction":"IN","sender":"237655685452","messageType":"TEXT","isViewOnce":false,"content":"ping"}
-{"timestamp":"2026-03-22T00:18:35.561Z","direction":"OUT","sender":"237655685452","messageType":"TEXT","isViewOnce":false,"content":"Pong!"}
