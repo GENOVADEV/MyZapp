@@ -4,75 +4,40 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url       = env("DATABASE_URL")  
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id                  String             @id @default(cuid())
-  email               String             @unique
-  emailVerified       DateTime?
-  name                String?
-  username            String?            @unique
-  phone               String?            @unique
-  phoneVerified       DateTime?
-  image               String?
-  password            String?
-  language            String             @default("fr")
-  theme               String             @default("light")
-  timezone            String             @default("Europe/Paris")
-  twoFactorEnabled    Boolean            @default(false)
-  twoFactorSecret     String?
-  lastLoginAt         DateTime?
-  lastLoginIp         String?
-  failedLoginAttempts Int                @default(0)
-  lockedUntil         DateTime?
-  status              UserStatus         @default(ACTIVE)
-  role                UserRole           @default(USER)
-  plan                Plan               @default(FREE)
-  planExpiresAt       DateTime?
-  trialEndsAt         DateTime?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  deletedAt           DateTime?
-  lastSyncAt          DateTime?
-  accounts            Account[]
-  apiKeys             ApiKey[]
-  broadcasts          Broadcast[]
-  auditLogs           AuditLog[]
-  bots                Bot[]
-  initiatedCalls      Call[]             @relation("CallInitiator")
-  contactOf           Contact[]          @relation("ContactUser")
-  contacts            Contact[]          @relation("UserContacts")
-  conversations       Conversation[]
-  devices             Device[]
-  folders             Folder[]
-  ownedGroups         Group[]            @relation("GroupOwner")
-  groups              GroupMember[]
-  mediaFiles          MediaFile[]
-  messages            Message[]
-  notifications       Notification[]
-  payments            Payment[]
-  polls               Poll[]
-  pollVotes           PollVote[]
-  reactions           Reaction[]
-  scheduledMessages   ScheduledMessage[]
-  sessions            Session[]
-  subscriptions       Subscription[]
-  voiceNotes          VoiceNote[]
-  calls               Call[]             @relation("CallParticipants")
-
-  whatsappConnected Boolean   @default(false)
-  WhatsAppSession   WhatsAppSession[]
-  lastWhatsappSync  DateTime?
-  whatsappStatus    String    @default("offline")
-  whatsappId        String?   @unique
-  whatsappAbout     String?
+  id            String               @id @default(cuid())
+  email         String               @unique
+  emailVerified DateTime?
+  name          String?
+  username      String?              @unique
+  phone         String?              @unique
+  image         String?
+  password      String?
+  language      String               @default("fr")
+  theme         String               @default("light")
+  timezone      String               @default("Europe/Paris")
+  status        UserStatus           @default(ACTIVE)
+  role          UserRole             @default(USER)
+  plan          Plan                 @default(FREE)
+  planExpiresAt DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  transaction  Transaction[]
+  accounts      Account[]
+  apiKeys       ApiKey[]
+  appSessions   AppWhatsAppSession[]
+  auditLogs     AuditLog[]
+  devices       Device[]
+  notifications Notification[]
+  payments      Payment[]
+  sessions      Session[]
+  subscriptions Subscription[]
 
   @@index([email])
-  @@index([username])
-  @@index([phone])
   @@index([plan])
-  @@index([createdAt])
 }
 
 model Account {
@@ -94,7 +59,6 @@ model Account {
   @@index([userId])
 }
 
-// Ton modèle Session amélioré (pour l'accès à ton tableau de bord)
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -103,679 +67,27 @@ model Session {
   userAgent    String?
   ipAddress    String?
   deviceId     String?
-  device       Device?  @relation(fields: [deviceId], references: [id])
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Nouveaux champs utiles
   isActive     Boolean  @default(true)
   lastActive   DateTime @default(now())
   createdAt    DateTime @default(now())
+  device       Device?  @relation(fields: [deviceId], references: [id])
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([deviceId])
-}
-
-// 📦 NOUVEAU MODÈLE : Pour stocker les clés Baileys
-model WhatsAppSession {
-  id        String   @id @default(cuid())
-  sessionId String   // Identifiant de la session WhatsApp
-  userId    String   // Référence vers l'utilisateur
-  dataId    String   // Type de donnée (creds, app-state-sync-key-*, etc.)
-  data      String   @db.Text // Données JSON stringifiées
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relation vers l'utilisateur
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Index composé unique pour éviter les doublons
-  @@unique([sessionId, dataId], name: "sessionId_dataId")
-  @@index([userId])
-  @@index([sessionId])
-  @@map("whatsapp_sessions")
-}
-
-model VerificationToken {
-  identifier String
-  token      String    @unique
-  type       TokenType @default(EMAIL_VERIFICATION)
-  expires    DateTime
-  createdAt  DateTime  @default(now())
-
-  @@unique([identifier, token])
-  @@index([expires])
 }
 
 model Device {
-  id          String     @id @default(cuid())
-  userId      String
-  deviceName  String
-  deviceType  DeviceType
-  deviceToken String?
-  platform    String?
-  osVersion   String?
-  appVersion  String?
-  isActive    Boolean    @default(true)
-  lastSeenAt  DateTime   @default(now())
-  createdAt   DateTime   @default(now())
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessions    Session[]
-  updatedAt   DateTime   @updatedAt
+  id         String     @id @default(cuid())
+  userId     String
+  deviceName String
+  deviceType DeviceType
+  isActive   Boolean    @default(true)
+  lastSeenAt DateTime   @default(now())
+  createdAt  DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions   Session[]
 
   @@unique([userId, deviceType])
-  @@index([userId])
-  @@index([deviceToken])
-}
-
-model Conversation {
-  id                String           @id @default(cuid())
-  userId            String
-  type              ConversationType
-  whatsappId        String
-  name              String?
-  description       String?
-  avatar            String?
-  contactId         String?
-  groupId           String?
-  isPinned          Boolean          @default(false)
-  isMuted           Boolean          @default(false)
-  mutedUntil        DateTime?
-  isArchived        Boolean          @default(false)
-  isBlocked         Boolean          @default(false)
-  isLocked          Boolean          @default(false)
-  lockPin           String?
-  ephemeralEnabled  Boolean          @default(false)
-  ephemeralDuration Int?
-  folderId          String?
-  lastMessageAt     DateTime?
-  lastReadAt        DateTime?
-  unreadCount       Int              @default(0)
-
-  // === NOUVEAUX CHAMPS ===
-
-  // Identifiants / JID
-  newJid String?
-  oldJid String?
-  pnJid  String?
-  lidJid String?
-
-  // timestamps (long -> BigInt ou DateTime)
-  lastMsgTimestamp             BigInt?
-  conversationTimestamp        BigInt?
-  ephemeralSettingTimestamp    BigInt?
-  tcTokenTimestamp             BigInt?
-  tcTokenSenderTimestamp       BigInt?
-  limitSharingSettingTimestamp BigInt?
-  createdAtTimestamp           BigInt?
-
-  // États de conversation
-  readOnly                  Boolean?
-  archived                  Boolean?
-  notSpam                   Boolean?
-  markedAsUnread            Boolean?
-  support                   Boolean?
-  suspended                 Boolean?
-  terminated                Boolean?
-  locked                    Boolean?
-  isParentGroup             Boolean?
-  isDefaultSubgroup         Boolean?
-  shareOwnPn                Boolean?
-  pnhDuplicateLidThread     Boolean?
-  limitSharing              Boolean?
-  limitSharingInitiatedByMe Boolean?
-
-  // Comptages
-  unreadMentionCount Int?
-  commentsCount      Int?
-
-  // Éphémère / disparition
-  ephemeralExpiration Int?
-  disappearingMode    Json? // ou enum si tu veux le typer
-
-  // Identité / sécurité
-  pHash                     String?
-  contactPrimaryIdentityKey String?
-  tcToken                   String?
-
-  // Groupe / hiérarchie
-  parentGroupId String?
-  accountLid    String?
-
-  // Utilisateurs / création
-  createdBy String?
-
-  // Limites / règles
-  limitSharingTrigger String?
-
-  // Autres
-  username      String?
-  lidOriginType String?
-
-  // media / visuel
-  wallpaper       Json?
-  mediaVisibility String?
-
-  // flags système
-  systemMessageToInsert    Json?
-  endOfHistoryTransfer     Boolean?
-  endOfHistoryTransferType String?
-
-  // relations existantes
-  contact  Contact?  @relation(fields: [contactId], references: [id])
-  folder   Folder?   @relation(fields: [folderId], references: [id])
-  group    Group?    @relation(fields: [groupId], references: [id])
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  drafts   Draft[]
-  messages Message[]
-
-  @@unique([userId, contactId])
-  @@unique([userId, groupId])
-  @@unique([userId, whatsappId])
-  @@index([userId])
-  @@index([contactId])
-  @@index([groupId])
-  @@index([folderId])
-  @@index([lastMessageAt])
-  @@index([whatsappId])
-  @@index([userId, lastMessageAt])
-}
-
-model Message {
-  id String @id @default(cuid())
-
-  // 🔗 WhatsApp core
-  whatsappMessageId String  @unique
-  chatJid           String // ex: 2376xxxx@s.whatsapp.net ou group@g.us
-  senderJid         String
-  fromMe            Boolean
-
-  // 👥 contexte
-  participantJid String? // pour groupes
-
-  // 🧠 contenu
-  type       MessageType
-  content    String?
-  rawMessage Json? // proto.IMessage complet
-
-  // 📎 media
-  mediaFileId       String?
-  mediaData         Json? // proto.IMediaData
-  mediaCipherSha256 String?
-
-  // 🎤 voice
-  voiceNoteId String?
-
-  // 🔁 reply / forward
-  replyToId       String?
-  forwardedFromId String?
-  forwardCount    Int     @default(0)
-
-  // ⭐ flags WhatsApp
-  isStarred   Boolean @default(false)
-  isBroadcast Boolean @default(false)
-  isMulticast Boolean @default(false)
-
-  // 📊 status
-  status      MessageStatus @default(SENT)
-  deliveredAt DateTime?
-  readAt      DateTime?
-
-  // ✏️ édition
-  isEdited        Boolean   @default(false)
-  editedAt        DateTime?
-  originalContent String?
-  editHistory     Json?
-  isForwarded     Boolean   @default(false)
-
-  // 🗑 suppression
-  isDeleted  Boolean   @default(false)
-  deletedAt  DateTime?
-  deletedFor String[]
-
-  // 📌 pin
-  isPinned Boolean   @default(false)
-  pinnedAt DateTime?
-
-  // ⏳ ephemeral
-  isEphemeral        Boolean   @default(false)
-  ephemeralDuration  Int?
-  ephemeralStart     DateTime?
-  ephemeralExpiresAt DateTime?
-
-  // 🧾 metadata avancé
-  stubType       String?
-  stubParameters String[]
-  labels         String[]
-
-  // 💰 paiement
-  paymentInfo Json?
-
-  // 📍 live location
-  liveLocation Json?
-
-  // 📊 sondages
-  pollData Json?
-
-  // 🤖 bot / business
-  isBiz           Boolean?
-  verifiedBizName String?
-  botInvokerJid   String?
-
-  // 🔐 sécurité
-  messageSecret String?
-
-  // 👁 lecture avancée
-  userReceipts Json? // proto.IUserReceipt[]
-
-  // 😀 réactions
-  reactions Reaction[]
-
-  // 🔗 relations internes
-  conversationId String
-  senderId       String
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation(fields: [senderId], references: [id])
-
-  // self relations
-  replyTo  Message?         @relation("MessageReplies", fields: [replyToId], references: [id])
-  replies  Message[]        @relation("MessageReplies")
-  receipts MessageReceipt[]
-
-  forwardedFrom Message?  @relation("MessageForwards", fields: [forwardedFromId], references: [id])
-  forwards      Message[] @relation("MessageForwards")
-
-  mediaFile MediaFile? @relation(fields: [mediaFileId], references: [id])
-  voiceNote VoiceNote? @relation(fields: [voiceNoteId], references: [id])
-
-  // ⏱ timestamps
-  whatsappTimestamp DateTime
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  expiresAt         DateTime?
-
-  @@index([chatJid])
-  @@index([senderJid])
-  @@index([conversationId, createdAt])
-  @@index([status])
-}
-
-model ScheduledMessage {
-  id             String                 @id @default(cuid())
-  userId         String
-  conversationId String?                @unique
-  recipientType  RecipientType
-  recipientId    String
-  type           MessageType
-  content        String?
-  mediaFileId    String?
-  scheduledFor   DateTime
-  timezone       String                 @default("Europe/Paris")
-  status         ScheduledMessageStatus @default(PENDING)
-  sentAt         DateTime?
-  failedAt       DateTime?
-  errorMessage   String?
-  repeatType     RepeatType             @default(ONCE)
-  repeatUntil    DateTime?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  mediaFile      MediaFile?             @relation(fields: [mediaFileId], references: [id])
-  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([scheduledFor])
-  @@index([status])
-}
-
-model MessageReceipt {
-  id        String    @id @default(cuid())
-  messageId String
-  userJid   String
-  status    String // delivered, read
-  timestamp DateTime?
-
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
-}
-
-model Reaction {
-  id        String   @id @default(cuid())
-  messageId String
-  userId    String
-  emoji     String
-  createdAt DateTime @default(now())
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([messageId, userId, emoji])
-  @@index([messageId])
-  @@index([userId])
-}
-
-model Draft {
-  id             String       @id @default(cuid())
-  conversationId String
-  userId         String
-  content        String?
-  mediaFiles     String[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@unique([conversationId, userId])
-  @@index([userId])
-}
-
-model Contact {
-  id            String         @id @default(cuid())
-  userId        String
-  contactUserId String?
-  name          String
-  phone         String?
-  email         String?
-  avatar        String?
-  bio           String?
-  isBlocked     Boolean        @default(false)
-  notes         String?
-  customFields  Json?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  contactUser   User?          @relation("ContactUser", fields: [contactUserId], references: [id])
-  user          User           @relation("UserContacts", fields: [userId], references: [id], onDelete: Cascade)
-  conversations Conversation[]
-
-  @@unique([userId, phone])
-  @@unique([userId, contactUserId])
-  @@index([userId])
-  @@index([contactUserId])
-}
-
-model Broadcast {
-  id String @id @default(cuid())
-
-  // 👤 owner (toi)
-  userId String
-
-  // 🔗 WhatsApp
-  whatsappMessageId String @unique
-  senderJid         String // qui a posté le status
-  chatJid           String // souvent "status@broadcast"
-
-  // 🧠 contenu
-  type       MessageType
-  content    String?
-  rawMessage Json?
-
-  // 📎 media
-  mediaFileId String?
-  mediaData   Json?
-
-  // 👀 viewers
-  viewers   String[] // liste des JID qui ont vu
-  viewCount Int      @default(0)
-
-  // ⏳ durée
-  isEphemeral Boolean   @default(true)
-  expiresAt   DateTime?
-
-  // 📊 metadata
-  caption  String?
-  mimeType String?
-  fileSize Int?
-  duration Int?
-
-  // timestamps
-  whatsappTimestamp DateTime
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // relations
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mediaFile MediaFile? @relation(fields: [mediaFileId], references: [id])
-
-  @@index([userId])
-  @@index([senderJid])
-  @@index([whatsappTimestamp])
-  @@index([userId, createdAt])
-}
-
-model Group {
-  id String @id @default(cuid())
-
-  // WhatsApp
-  whatsappId     String  @unique // id du groupe (ex: 12345@g.us)
-  addressingMode String? // 'lid' ou 'pn'
-
-  // Infos principales
-  name        String // correspond à "subject"
-  description String? // desc
-  avatar      String?
-
-  // Owner
-  ownerId          String
-  ownerJid         String? // owner WhatsApp (ex: 2376xxx@s.whatsapp.net)
-  ownerPhoneNumber String? // ownerPn
-  ownerCountryCode String? // owner_country_code
-
-  // Subject info
-  subjectOwner   String?
-  subjectOwnerPn String?
-  subjectTime    DateTime?
-
-  // Description metadata
-  descOwner   String?
-  descOwnerPn String?
-  descId      String?
-  descTime    DateTime?
-
-  // Group settings
-  onlyAdminsCanEdit   Boolean @default(false) // restrict
-  onlyAdminsCanPost   Boolean @default(false) // announce
-  membersCanAddOthers Boolean @default(true) // memberAddMode
-  joinApprovalMode    Boolean @default(false)
-
-  // Community
-  isCommunity         Boolean @default(false)
-  isCommunityAnnounce Boolean @default(false)
-  linkedParent        String? // id communauté
-
-  // Participants
-  maxMembers Int  @default(256)
-  size       Int? // nombre réel WhatsApp
-
-  // Ephemeral
-  ephemeralEnabled  Boolean @default(false)
-  ephemeralDuration Int?
-
-  // Invite
-  inviteLink String? @unique
-  inviteCode String?
-
-  // Moderation (tes features custom)
-  moderationEnabled Boolean  @default(false)
-  bannedWords       String[]
-  autoDeleteSpam    Boolean  @default(false)
-
-  // Stats
-  totalMessages Int @default(0)
-  activeMembers Int @default(0)
-
-  // Meta
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  // Relations
-  owner         User           @relation("GroupOwner", fields: [ownerId], references: [id])
-  members       GroupMember[]
-  conversations Conversation[]
-  polls         Poll[]
-
-  @@index([ownerId])
-  @@index([inviteLink])
-  @@index([whatsappId])
-}
-
-model GroupMember {
-  id           String    @id @default(cuid())
-  groupId      String
-  userId       String
-  role         GroupRole @default(MEMBER)
-  isAdmin      Boolean   @default(false)
-  isSuperAdmin Boolean   @default(false)
-  canPost      Boolean   @default(true)
-  canInvite    Boolean   @default(true)
-  isMuted      Boolean   @default(false)
-  mutedUntil   DateTime?
-  joinedAt     DateTime  @default(now())
-  leftAt       DateTime?
-  group        Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([groupId, userId])
-  @@index([groupId])
-  @@index([userId])
-}
-
-model MediaFile {
-  id                String             @id @default(cuid())
-  userId            String
-  fileName          String
-  fileSize          Int
-  mimeType          String
-  url               String
-  waveForm          String?
-  width             Int?
-  height            Int?
-  duration          Int?
-  type              MediaType
-  viewOnce          Boolean            @default(false)
-  fileHash          String?            @unique
-  fileEncSha        String?            @unique
-  mediaKey          String?
-  isCompressed      Boolean            @default(false)
-  originalPath      String?
-  storageProvider   String             @default("s3")
-  storagePath       String
-  createdAt         DateTime           @default(now())
-  expiresAt         DateTime?
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  broadcasts        Broadcast[]
-  messages          Message[]
-  scheduledMessages ScheduledMessage[]
-
-  @@index([userId])
-  @@index([type])
-  @@index([createdAt])
-}
-
-model VoiceNote {
-  id            String    @id @default(cuid())
-  userId        String
-  url           String
-  duration      Int
-  waveform      Json?
-  transcription String?
-  transcribedAt DateTime?
-  language      String?
-  fileSize      Int
-  mimeType      String    @default("audio/ogg")
-  createdAt     DateTime  @default(now())
-  messages      Message[]
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-model Poll {
-  id            String     @id @default(cuid())
-  groupId       String?
-  createdBy     String
-  question      String
-  options       Json
-  allowMultiple Boolean    @default(false)
-  isAnonymous   Boolean    @default(false)
-  expiresAt     DateTime?
-  isClosed      Boolean    @default(false)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  creator       User       @relation(fields: [createdBy], references: [id])
-  group         Group?     @relation(fields: [groupId], references: [id])
-  votes         PollVote[]
-
-  @@index([groupId])
-  @@index([createdBy])
-}
-
-model PollVote {
-  id        String   @id @default(cuid())
-  pollId    String
-  userId    String
-  optionIds String[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([pollId, userId])
-  @@index([pollId])
-  @@index([userId])
-}
-
-model Call {
-  id             String       @id @default(cuid())
-  initiatorId    String
-  type           CallType
-  status         CallStatus   @default(RINGING)
-  participantIds String[]
-  startedAt      DateTime?
-  endedAt        DateTime?
-  duration       Int?
-  isRecorded     Boolean      @default(false)
-  recordingUrl   String?
-  quality        CallQuality?
-  createdAt      DateTime     @default(now())
-  initiator      User         @relation("CallInitiator", fields: [initiatorId], references: [id])
-  participants   User[]       @relation("CallParticipants")
-
-  @@index([initiatorId])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model Folder {
-  id            String         @id @default(cuid())
-  userId        String
-  name          String
-  icon          String?
-  color         String?
-  position      Int            @default(0)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  conversations Conversation[]
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([position])
-}
-
-model Bot {
-  id              String    @id @default(cuid())
-  userId          String
-  name            String
-  description     String?
-  avatar          String?
-  type            BotType
-  config          Json
-  triggers        Json
-  isActive        Boolean   @default(true)
-  totalMessages   Int       @default(0)
-  lastTriggeredAt DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([isActive])
 }
 
 model Subscription {
@@ -787,17 +99,11 @@ model Subscription {
   providerSubId      String?
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
-  trialStart         DateTime?
-  trialEnd           DateTime?
   cancelAtPeriodEnd  Boolean            @default(false)
-  canceledAt         DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   payments           Payment[]
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([status])
 }
 
 model Payment {
@@ -809,48 +115,29 @@ model Payment {
   status            PaymentStatus
   provider          PaymentProvider
   providerPaymentId String?         @unique
-  metadata          Json?
   createdAt         DateTime        @default(now())
   subscription      Subscription?   @relation(fields: [subscriptionId], references: [id])
   user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([status])
 }
 
 model ApiKey {
-  id         String    @id @default(cuid())
-  userId     String
-  name       String
-  key        String    @unique
-  scopes     String[]
-  rateLimit  Int       @default(1000)
-  isActive   Boolean   @default(true)
-  lastUsedAt DateTime?
-  expiresAt  DateTime?
-  createdAt  DateTime  @default(now())
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([key])
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  key       String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
-  id        String           @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  type      NotificationType
   title     String
   body      String
-  data      Json?
-  actionUrl String?
-  isRead    Boolean          @default(false)
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([isRead])
-  @@index([createdAt])
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
@@ -859,16 +146,414 @@ model AuditLog {
   action    String
   entity    String
   entityId  String
-  changes   Json?
-  metadata  Json?
-  ipAddress String?
-  userAgent String?
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id])
+}
+
+model AppWhatsAppSession {
+  id        String @id
+  sessionId String
+  userId    String
+  botPhone  String?
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([entity])
-  @@index([createdAt])
+  @@index([botPhone])
+  @@map("AppWhatsAppSessions")
+}
+
+model BotUsage {
+  id           Int      @id @default(autoincrement())
+  sessionId    String
+  date         DateTime @db.Date
+  commandCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([sessionId, date])
+  @@index([sessionId])
+  @@map("bot_usages")
+}
+
+model Warn {
+  id        String   @id @default(cuid())
+  chat      String
+  user      String
+  reason    String?  @default("No reason provided")
+  warnedBy  String
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("_warn")
+}
+
+model Filter {
+  id            String   @id @default(cuid())
+  trigger       String
+  response      String
+  jid           String?
+  scope         String   @default("chat")
+  enabled       Boolean  @default(true)
+  caseSensitive Boolean  @default(false)
+  exactMatch    Boolean  @default(false)
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("filter")
+}
+
+model AntilinkConfig {
+  jid           String   @id
+  mode          String   @default("delete")
+  allowedLinks  String?
+  blockedLinks  String?
+  isWhitelist   Boolean  @default(true)
+  enabled       Boolean  @default(true)
+  customMessage String?
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("antilink_config")
+}
+
+model Welcome {
+  id        String   @id @default(cuid())
+  jid       String
+  message   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("welcome")
+}
+
+model Goodbye {
+  id        String   @id @default(cuid())
+  jid       String
+  message   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("goodbye")
+}
+
+model Fake {
+  id        String   @id @default(cuid())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("fake")
+}
+
+model AntiSpam {
+  id        String   @id @default(cuid())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antispam")
+}
+
+model Pdm {
+  id        String   @id @default(cuid())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pdm")
+}
+
+model AntiDemote {
+  id        String   @id @default(cuid())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antidemote")
+}
+
+model AntiPromote {
+  id        String   @id @default(cuid())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antipromote")
+}
+
+model AntiBot {
+  id        String   @id @default(cuid())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antibot")
+}
+
+model antiwords {
+  id        Int      @id @default(autoincrement())
+  word      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  jid       String?
+}
+
+model AntiDeleteCaches {
+  messageId   String   @id @db.VarChar(255)
+  chatJid     String   @db.VarChar(255)
+  senderJid   String   @db.VarChar(255)
+  fullContent Json     @db.Json
+  timestamp   DateTime @db.Timestamptz(6)
+  Chats       Chats    @relation(fields: [chatJid], references: [jid], onDelete: Cascade)
+  Users       Users    @relation(fields: [senderJid], references: [jid], onDelete: Cascade)
+
+  @@index([chatJid], map: "anti_delete_caches_chat_jid")
+  @@index([messageId], map: "anti_delete_caches_message_id")
+  @@index([timestamp], map: "anti_delete_caches_timestamp")
+}
+
+model AppUsers {
+  id        Int      @id @default(autoincrement())
+  name      String?  @db.VarChar(255)
+  plan      String?  @default("FREE") @db.VarChar(255)
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model Chats {
+  jid              String             @id @db.VarChar(255)
+  type             enum_Chats_type
+  name             String?            @db.VarChar(255)
+  isActive         Boolean?           @default(true)
+  createdAt        DateTime           @db.Timestamptz(6)
+  updatedAt        DateTime           @db.Timestamptz(6)
+  AntiDeleteCaches AntiDeleteCaches[]
+  UserStats        UserStats[]
+
+  @@index([isActive], map: "chats_is_active")
+  @@index([jid], map: "chats_jid")
+  @@index([type], map: "chats_type")
+}
+
+model Plugins {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  url       String
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model UserStats {
+  id              Int       @id @default(autoincrement())
+  userJid         String    @db.VarChar(255)
+  chatJid         String    @db.VarChar(255)
+  totalMessages   Int?      @default(0)
+  textMessages    Int?      @default(0)
+  imageMessages   Int?      @default(0)
+  videoMessages   Int?      @default(0)
+  audioMessages   Int?      @default(0)
+  stickerMessages Int?      @default(0)
+  otherMessages   Int?      @default(0)
+  lastMessageAt   DateTime? @db.Timestamptz(6)
+  createdAt       DateTime  @db.Timestamptz(6)
+  updatedAt       DateTime  @db.Timestamptz(6)
+  Chats           Chats     @relation(fields: [chatJid], references: [jid], onDelete: Cascade)
+  Users           Users     @relation(fields: [userJid], references: [jid], onDelete: Cascade)
+
+  @@unique([userJid, chatJid], map: "user_stats_user_jid_chat_jid")
+  @@index([chatJid], map: "user_stats_chat_jid")
+  @@index([lastMessageAt], map: "user_stats_last_message_at")
+  @@index([totalMessages], map: "user_stats_total_messages")
+}
+
+model Users {
+  jid              String             @id @db.VarChar(255)
+  name             String?            @db.VarChar(255)
+  lastSeen         DateTime?          @db.Timestamptz(6)
+  createdAt        DateTime           @db.Timestamptz(6)
+  updatedAt        DateTime           @db.Timestamptz(6)
+  AntiDeleteCaches AntiDeleteCaches[]
+  UserStats        UserStats[]
+
+  @@index([jid], map: "users_jid")
+  @@index([lastSeen], map: "users_last_seen")
+}
+
+model WhatsappSessions {
+  sessionId   String   @id @db.VarChar(255)
+  sessionData String?
+  createdAt   DateTime @db.Timestamptz(6)
+  updatedAt   DateTime @db.Timestamptz(6)
+}
+
+model warns {
+  id        Int       @id @default(dbgenerated("nextval('_warns_id_seq'::regclass)"))
+  chat      String    @db.VarChar(255)
+  user      String    @db.VarChar(255)
+  reason    String?   @default("No reason provided")
+  warnedBy  String    @db.VarChar(255)
+  timestamp DateTime? @db.Timestamptz(6)
+  createdAt DateTime  @db.Timestamptz(6)
+  updatedAt DateTime  @db.Timestamptz(6)
+
+  @@map("_warns")
+}
+
+model antibots {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model antidemotes {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model antilink_configs {
+  jid           String                     @id @db.VarChar(255)
+  mode          enum_antilink_configs_mode @default(delete)
+  allowedLinks  String?
+  blockedLinks  String?
+  isWhitelist   Boolean?                   @default(true)
+  enabled       Boolean?                   @default(true)
+  customMessage String?
+  updatedBy     String?                    @db.VarChar(255)
+  updatedAt     DateTime?                  @db.Timestamptz(6)
+  createdAt     DateTime                   @db.Timestamptz(6)
+}
+
+model antilinks {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model antipromotes {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model antispams {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model automutes {
+  id        Int      @id @default(autoincrement())
+  chat      String   @db.VarChar(255)
+  time      String   @db.VarChar(255)
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model autounmutes {
+  id        Int      @id @default(autoincrement())
+  chat      String   @db.VarChar(255)
+  time      String   @db.VarChar(255)
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model bot_variables {
+  key       String   @id @db.VarChar(255)
+  value     String?
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model fakes {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model filters {
+  id            Int                 @id @default(autoincrement())
+  trigger       String              @db.VarChar(255)
+  response      String
+  jid           String?             @db.VarChar(255)
+  scope         enum_filters_scope? @default(chat)
+  enabled       Boolean?            @default(true)
+  caseSensitive Boolean?            @default(false)
+  exactMatch    Boolean?            @default(false)
+  createdBy     String              @db.VarChar(255)
+  createdAt     DateTime            @db.Timestamptz(6)
+  updatedAt     DateTime            @db.Timestamptz(6)
+}
+
+model goodbyes {
+  id        Int      @id @default(autoincrement())
+  jid       String   @db.VarChar(255)
+  message   String
+  enabled   Boolean? @default(true)
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model pdms {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model scheduled_messages {
+  id           Int      @id @default(autoincrement())
+  jid          String   @db.VarChar(255)
+  message      String   @db.VarChar(2048)
+  scheduleTime DateTime @db.Timestamptz(6)
+  isSent       Boolean? @default(false)
+  createdAt    DateTime @db.Timestamptz(6)
+  updatedAt    DateTime @db.Timestamptz(6)
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  userId        String
+  amount        Float
+  currency      String   // "EUR", "USD", "XAF"
+  provider      String   // "STRIPE" ou "CAMPAY"
+  status        String   @default("PENDING") // PENDING, SUCCESS, FAILED
+  reference     String   @unique // L'ID de la transaction chez Stripe/Campay
+  planPurchased String   // "YOUNG", "AGENT", "BUSINESS"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model stickcmds {
+  id        Int      @id @default(autoincrement())
+  command   String   @db.VarChar(1000)
+  file      String   @db.VarChar(1000)
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
+}
+
+model welcomes {
+  id        Int      @id @default(autoincrement())
+  jid       String   @db.VarChar(255)
+  message   String
+  enabled   Boolean? @default(true)
+  createdAt DateTime @db.Timestamptz(6)
+  updatedAt DateTime @db.Timestamptz(6)
 }
 
 enum UserStatus {
@@ -892,109 +577,11 @@ enum Plan {
   PRO
 }
 
-enum TokenType {
-  EMAIL_VERIFICATION
-  PASSWORD_RESET
-  TWO_FACTOR
-  PHONE_VERIFICATION
-}
-
 enum DeviceType {
   WEB
   MOBILE
   DESKTOP
   TABLET
-}
-
-enum ConversationType {
-  DIRECT
-  GROUP
-  SELF
-}
-
-enum MessageType {
-  TEXT
-  IMAGE
-  VIDEO
-  AUDIO
-  VOICE_NOTE
-  DOCUMENT
-  LOCATION
-  CONTACT
-  STICKER
-  POLL
-  SYSTEM
-}
-
-enum MessageStatus {
-  ERROR
-  PENDING
-  SERVER_ACK
-  DELIVERY_ACK
-  READ
-  PLAYED
-  SENT
-}
-
-enum MediaType {
-  IMAGE
-  VIDEO
-  AUDIO
-  DOCUMENT
-  VOICE_NOTE
-}
-
-enum RecipientType {
-  CONTACT
-  GROUP
-}
-
-enum ScheduledMessageStatus {
-  PENDING
-  SENT
-  FAILED
-  CANCELLED
-}
-
-enum RepeatType {
-  ONCE
-  DAILY
-  WEEKLY
-  MONTHLY
-}
-
-enum GroupRole {
-  OWNER
-  ADMIN
-  MODERATOR
-  MEMBER
-}
-
-enum CallType {
-  AUDIO
-  VIDEO
-}
-
-enum CallStatus {
-  RINGING
-  ONGOING
-  ENDED
-  MISSED
-  DECLINED
-}
-
-enum CallQuality {
-  EXCELLENT
-  GOOD
-  FAIR
-  POOR
-}
-
-enum BotType {
-  AUTO_REPLY
-  WELCOME_MESSAGE
-  SCHEDULED
-  CUSTOM
 }
 
 enum SubscriptionStatus {
@@ -1018,17 +605,20 @@ enum PaymentProvider {
   CREDIT_CARD
 }
 
-enum NotificationType {
-  NEW_MESSAGE
-  MENTION
-  CALL_MISSED
-  GROUP_INVITE
-  SYSTEM
-  PAYMENT
-  SECURITY
+enum enum_Chats_type {
+  private
+  group
 }
 
-enum NotificationStatus {
-  UNREAD
-  READ
+enum enum_antilink_configs_mode {
+  warn
+  kick
+  delete
+}
+
+enum enum_filters_scope {
+  chat
+  global
+  dm
+  group
 }

@@ -1,130 +1,168 @@
-// src/contexts/AuthContext.tsx
-"use client"; // Indispensable car les Contexts React fonctionnent uniquement côté client
+"use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  ReactNode,
+  useEffect,
+} from "react";
 import { useRouter } from "next/navigation";
-import { authService, LoginCredentials, RegisterCredentials, UserDTO } from "@/services/auth/authService";
+import { useSession, signIn, signOut } from "next-auth/react";
 
-// ============================================================================
-// TYPAGE DU CONTEXTE
-// ============================================================================
-
-interface AuthContextType {
-  user: UserDTO | null;
-  isAuthenticated: boolean;
-  isLoading: boolean; // Très utile pour afficher des "spinners" pendant le chargement
-  login: (credentials: LoginCredentials) => Promise<void>;
-  register: (data: RegisterCredentials) => Promise<void>;
-  logout: () => void;
+// Types
+interface LoginCredentials {
+  email: string;
+  password: string;
 }
 
-// Initialisation du contexte
+interface RegisterCredentials {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+}
+
+interface AuthContextType {
+  // État
+  user: any | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  
+  // Méthodes
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (credentials: RegisterCredentials) => Promise<void>;
+  logout: () => Promise<void>;
+  clearError: () => void;
+}
+
+// Création du contexte
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// ============================================================================
-// COMPOSANT FOURNISSEUR (PROVIDER)
-// ============================================================================
-
+// Provider
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserDTO | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
   const router = useRouter();
+  const { data: session, status } = useSession();
+  const [error, setError] = useState<string | null>(null);
 
-  // 1. Au chargement de l'application, on vérifie si l'utilisateur est déjà connecté
-  useEffect(() => {
-    const checkSession = () => {
-      try {
-        const storedToken = localStorage.getItem("myzapp_token");
-        const storedUser = localStorage.getItem("myzapp_user");
+  const isLoading = status === "loading";
+  const isAuthenticated = status === "authenticated";
+  const user = session?.user || null;
 
-        if (storedToken && storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error("Erreur lors de la restauration de la session:", error);
-        // En cas de données corrompues, on nettoie
-        localStorage.removeItem("myzapp_token");
-        localStorage.removeItem("myzapp_user");
-      } finally {
-        setIsLoading(false); // Le chargement initial est terminé
+  // Fonction de connexion avec NextAuth
+  const login = useCallback(async (credentials: LoginCredentials) => {
+    try {
+      setError(null);
+
+      // Utiliser signIn de NextAuth avec le provider "credentials"
+      const result = await signIn("credentials", {
+        email: credentials.email,
+        password: credentials.password,
+        redirect: false, // On gère la redirection manuellement
+      });
+
+      if (!result?.ok) {
+        throw new Error(result?.error || "Erreur lors de la connexion");
       }
-    };
 
-    checkSession();
+      // Redirection vers le dashboard
+      router.push("/dashboard");
+    } catch (err: any) {
+      const errorMessage = err.message || "Identifiants incorrects. Veuillez réessayer.";
+      setError(errorMessage);
+      throw err;
+    }
+  }, [router]);
+
+  // Fonction d'inscription
+  const register = useCallback(async (credentials: RegisterCredentials) => {
+    try {
+      setError(null);
+
+      // Appeler l'API d'inscription
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Erreur lors de l'inscription");
+      }
+
+      // Auto-connexion après inscription (optionnel)
+      if (data.autoLogin) {
+        const signInResult = await signIn("credentials", {
+          email: credentials.email,
+          password: credentials.password,
+          redirect: false,
+        });
+
+        if (!signInResult?.ok) {
+          // Redirection vers login avec message
+          router.push("/login?registered=true");
+          return;
+        }
+
+        router.push("/dashboard");
+      } else {
+        // Redirection vers login pour se connecter
+        router.push("/login?registered=true");
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || "Erreur lors de l'inscription";
+      setError(errorMessage);
+      throw err;
+    }
+  }, [router]);
+
+  // Fonction de déconnexion
+  const logout = useCallback(async () => {
+    try {
+      // Utiliser signOut de NextAuth
+      await signOut({ redirect: false });
+      
+      setError(null);
+      router.push("/login");
+    } catch (err) {
+      console.error("Erreur lors de la déconnexion:", err);
+    }
+  }, [router]);
+
+  // Fonction pour effacer les erreurs
+  const clearError = useCallback(() => {
+    setError(null);
   }, []);
 
-  // 2. Fonction de connexion
-  const login = async (credentials: LoginCredentials) => {
-    setIsLoading(true);
-    try {
-      const response = await authService.login(credentials);
-      
-      if (response.success && response.token && response.user) {
-        // On sauvegarde le token et les infos utilisateur dans le navigateur
-        localStorage.setItem("myzapp_token", response.token);
-        localStorage.setItem("myzapp_user", JSON.stringify(response.user));
-        
-        setUser(response.user);
-        router.push("/dashboard"); // Redirection vers le tableau de bord
-      } else {
-        throw new Error(response.message || "Erreur de connexion");
-      }
-    } catch (error) {
-      throw error; // On renvoie l'erreur pour l'afficher sur la page de login
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 3. Fonction d'inscription
-  const register = async (data: RegisterCredentials) => {
-    setIsLoading(true);
-    try {
-      const response = await authService.register(data);
-      
-      if (response.success) {
-        // Après l'inscription, on peut soit connecter l'utilisateur directement, 
-        // soit le renvoyer vers la page de connexion. Ici, on va vers le login.
-        router.push("/login?registered=true");
-      } else {
-        throw new Error(response.message || "Erreur lors de l'inscription");
-      }
-    } catch (error) {
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 4. Fonction de déconnexion
-  const logout = () => {
-    localStorage.removeItem("myzapp_token");
-    localStorage.removeItem("myzapp_user");
-    setUser(null);
-    router.push("/login"); // On le renvoie à l'accueil ou au login
-  };
-
-  // Les valeurs exposées à toute l'application
-  const value = {
+  const value: AuthContextType = {
     user,
-    isAuthenticated: !!user, // true si user existe, false sinon
+    isAuthenticated,
     isLoading,
+    error,
     login,
     register,
     logout,
+    clearError,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
-// ============================================================================
-// HOOK PERSONNALISÉ (Pour utiliser le contexte facilement)
-// ============================================================================
-
-export function useAuth() {
+// Hook pour utiliser le contexte
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
+
   if (context === undefined) {
-    throw new Error("useAuth doit être utilisé à l'intérieur d'un AuthProvider");
+    throw new Error("useAuth doit être utilisé dans un AuthProvider");
   }
+
   return context;
 }
