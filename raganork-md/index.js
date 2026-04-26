@@ -101,7 +101,6 @@ async function main() {
     const warnMsg ="⚠️ No sessions configured. Please add a session in the database or set SESSION environment variable.";
     console.warn(warnMsg);
     logger.warn(warnMsg);
-    return
     const botManager = new BotManager();
   }
   // =========================================================================
