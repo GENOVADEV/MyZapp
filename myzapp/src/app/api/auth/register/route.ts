@@ -1,90 +1,64 @@
 // src/app/api/auth/register/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs"
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
-export async function POST(req: Request) {
+const prisma = new PrismaClient();
+
+export async function POST(request: Request) {
   try {
-    // 1. Récupérer les données envoyées par le front-end
-    const body = await req.json();
-    const { name, email, password, phone } = body;
+    const { name, email, password, phone } = await request.json();
 
-    // 2. Validation basique
+    // Validations basiques
     if (!name || !email || !password) {
       return NextResponse.json(
-        { success: false, message: "Tous les champs sont requis." },
+        { message: "Nom, email et mot de passe requis" },
         { status: 400 }
       );
     }
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { success: false, message: "Le mot de passe doit contenir au moins 6 caractères." },
-        { status: 400 }
-      );
-    }
-
-    // 3. Vérifier si l'utilisateur existe déjà dans la base de données
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: email },
-          { phone: phone },
-        ],
-      },
+    // Vérifier si l'utilisateur existe déjà
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { success: false, message: "Un compte existe déjà avec cet email ou ce numéro de téléphone." },
-        { status: 409 } // 409 Conflict
+        { message: "Un compte avec cet email existe déjà" },
+        { status: 400 }
       );
     }
 
-    // 4. Sécuriser (Hacher) le mot de passe
-    // Le '10' est le "salt rounds" (le niveau de complexité du cryptage)
+    // Hasher le mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
-    const date = new Date();
 
-    // 5. Créer le nouvel utilisateur dans PostgreSQL
-    const newUser = await prisma.user.create({
+    // Créer l'utilisateur
+    const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        status: "ACTIVE",
-        role: "USER",
-        plan: "FREE",
-        phone,
-        createdAt: date
+        phone: phone || null,
+        emailVerified: null,
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+      }
     });
 
-    // 6. Renvoyer une réponse de succès (SANS le mot de passe !)
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Compte créé avec succès !",
-        user: {
-          id: newUser.id,
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          phone: newUser.phone,
-          status: newUser.status,
-          plan: newUser.plan,
-          createdAt: newUser.createdAt,
-          updatedAt: newUser.updatedAt,
-          
-        },
-      },
-      { status: 201 } // 201 Created
-    );
-
+    return NextResponse.json({
+      message: "Inscription réussie",
+      user,
+      autoLogin: true, // Permet au contexte de faire une auto-connexion
+    }, { status: 201 });
   } catch (error: any) {
-    console.error("Erreur lors de l'inscription :", error);
+    console.error("Erreur lors de l'inscription:", error);
     return NextResponse.json(
-      { success: false, message: "Erreur interne du serveur." },
+      { message: "Erreur lors de l'inscription" },
       { status: 500 }
     );
   }

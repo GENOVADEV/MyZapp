@@ -32,7 +32,8 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  Loader2
+  Loader2,
+  LayoutDashboard
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBot } from "@/contexts/BotContext";
@@ -59,6 +60,12 @@ interface NavSection {
   items: NavItem[];
 }
 
+interface SidebarProps {
+  isMobileOpen?: boolean;
+  setIsMobileOpen?: (isOpen: boolean) => void;
+}
+
+
 // ============================================================================
 // CONFIGURATION DE LA NAVIGATION
 // ============================================================================
@@ -68,12 +75,18 @@ const getNavigationSections = (userPlan: string = "FREE"): NavSection[] => [
     id: "main",
     items: [
       {
+        id: "dashboard",
+        label: "Tableau de bord",
+        icon: <LayoutDashboard className="w-5 h-5" />,
+        href: "/dashboard",
+      },
+      {
         id: "conversations",
         label: "Conversations",
         icon: <MessageCircle className="w-5 h-5" />,
-        href: "/dashboard",
+        href: "/dashboard/conversations",
         badge: 3,
-        badgeColor: "primary"
+        badgeColor: "primary",
       },
       {
         id: "contacts",
@@ -204,17 +217,19 @@ const getNavigationSections = (userPlan: string = "FREE"): NavSection[] => [
 // COMPOSANT PRINCIPAL
 // ============================================================================
 
-export default function Sidebar() {
+export default function Sidebar({ isMobileOpen: isMobileOpenProp, setIsMobileOpen: setIsMobileOpenProp }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { status: botStatus } = useBot();
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  // L'état d'ouverture mobile est maintenant contrôlé par les props, avec un fallback local.
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+  const isMobileOpen = isMobileOpenProp ?? internalMobileOpen;
+  const setMobileOpen = setIsMobileOpenProp ?? setInternalMobileOpen;
   const [sidebarWidth, setSidebarWidth] = useState(288); // Valeur par défaut en px (w-72)
   const [isDragging, setIsDragging] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
 
@@ -224,7 +239,6 @@ export default function Sidebar() {
 
   // Initialiser après montage côté client (évite hydration mismatch)
   useEffect(() => {
-    setIsMounted(true);
     const savedWidth = localStorage.getItem('sidebarWidth');
     if (savedWidth) {
       const width = parseInt(savedWidth);
@@ -247,8 +261,8 @@ export default function Sidebar() {
 
   // Fermer le menu mobile sur changement de route
   useEffect(() => {
-    setIsMobileOpen(false);
-  }, [pathname]);
+    if (isMobileOpen) setMobileOpen(false);
+  }, [pathname, isMobileOpen, setMobileOpen]);
 
   // Empêcher le scroll du body quand le menu mobile est ouvert
   useEffect(() => {
@@ -312,14 +326,31 @@ export default function Sidebar() {
   // Obtenir le badge de statut du bot
   const getBotStatusBadge = () => {
     switch (botStatus) {
-      case "connected":
-        return { icon: <CheckCircle2 className="w-3 h-3" />, color: "text-accent", label: "Connecté" };
-      case "connecting":
-        return { icon: <Loader2 className="w-3 h-3 animate-spin" />, color: "text-primary", label: "Connexion..." };
+      case "online":
+        return {
+          icon: <CheckCircle2 className="w-3 h-3" />,
+          color: "text-accent", // Généralement ta couleur verte/succès
+          label: "En ligne"
+        };
+      case "loading":
+        return {
+          icon: <Loader2 className="w-3 h-3 animate-spin" />,
+          color: "text-primary", // Ta couleur principale (bleu/violet)
+          label: "Vérification..."
+        };
       case "error":
-        return { icon: <AlertCircle className="w-3 h-3" />, color: "text-error", label: "Erreur" };
+        return {
+          icon: <AlertCircle className="w-3 h-3" />,
+          color: "text-error", // Rouge
+          label: "Erreur"
+        };
+      case "offline":
       default:
-        return { icon: <AlertCircle className="w-3 h-3" />, color: "text-text-subtle", label: "Déconnecté" };
+        return {
+          icon: <AlertCircle className="w-3 h-3" />,
+          color: "text-text-subtle",
+          label: "Hors ligne"
+        };
     }
   };
 
@@ -331,7 +362,7 @@ export default function Sidebar() {
       {isMobileOpen && (
         <div
           className="lg:hidden fixed inset-0 bg-black/50 z-40 animate-fade-in"
-          onClick={() => setIsMobileOpen(false)}
+          onClick={() => setMobileOpen(false)}
         />
       )}
 
@@ -339,19 +370,14 @@ export default function Sidebar() {
       <aside
         ref={sidebarRef}
         className={`
-          fixed lg:sticky top-0 left-0 z-50 h-screen
-          bg-panel border-r border-border-main
-          transition-all duration-300 ease-in-out
+          fixed lg:sticky top-0 left-0 z-50 h-screen bg-panel border-r border-border-main
           flex flex-col overflow-hidden
-          ${isMobileOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full lg:translate-x-0'}
+          transition-transform lg:transition-all duration-300 ease-in-out
+          w-72 lg:w-[var(--sidebar-width)] -translate-x-full lg:translate-x-0
+          ${isMobileOpen ? 'translate-x-0' : ''}
+          ${isCollapsed ? 'lg:w-16' : ''}
         `}
-        style={{
-          width: !isMounted
-            ? '288px'
-            : window.innerWidth >= 1024
-              ? isCollapsed ? '64px' : `${sidebarWidth}px`
-              : isMobileOpen ? '288px' : '0px'
-        }}
+        style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
       >
         {/* Header */}
         <div className={`
@@ -359,65 +385,37 @@ export default function Sidebar() {
           ${isCollapsed ? 'flex-col gap-2' : ''}
           min-h-max
         `}>
-          {isMobileOpen ? (
-            <>
-              {/* Logo Mobile */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-lg">
-                  <Icon />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold text-text-main">MyZapp</h1>
-                  <p className="text-xs text-text-subtle">Dashboard</p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Logo Desktop */}
-              <Link
-                href="/dashboard"
-                className={`
-                  flex items-center gap-3 group
-                  ${isCollapsed ? 'justify-center' : ''}
-                `}
-              >
-                <div className="w-10 h-10 -mt-1 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                  <Icon />
-                </div>
-                {!isCollapsed && (
-                  <div>
-                    <h1 className="text-lg font-bold text-text-main">MyZapp</h1>
-                    <p className="text-xs text-text-subtle">Dashboard</p>
-                  </div>
-                )}
-              </Link>
-            </>
-          )}
-
-          {isMobileOpen && (
-            <div className="flex items-center gap-2">
-              {/* Bouton fermer (mobile) */}
-              <button
-                onClick={() => setIsMobileOpen(false)}
-                className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-panel-hover transition-colors"
-                aria-label="Fermer le menu"
-              >
-                <X className="w-5 h-5 text-text-subtle" />
-              </button>
+          <Link
+            href="/dashboard"
+            className={`flex items-center gap-3 group ${isCollapsed ? 'justify-center' : ''}`}
+          >
+            <div className="w-10 h-10 -mt-1 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <Icon />
             </div>
-          )}
+            {!isCollapsed && (
+              <div>
+                <h1 className="text-lg font-bold text-text-main">MyZapp</h1>
+                <p className="text-xs text-text-subtle">Dashboard</p>
+              </div>
+            )}
+          </Link>
+
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-panel-hover transition-colors"
+            aria-label="Fermer le menu"
+          >
+            <X className="w-5 h-5 text-text-subtle" />
+          </button>
 
           {/* Bouton collapse (desktop) */}
-          {!isCollapsed && (
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden lg:flex w-8 h-8 items-center justify-center rounded-lg hover:bg-panel-hover transition-colors"
-              aria-label={isCollapsed ? "Étendre" : "Réduire"}
-            >
-              <ChevronLeft className="w-5 h-5 text-text-subtle" />
-            </button>
-          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden lg:flex w-8 h-8 items-center justify-center rounded-lg hover:bg-panel-hover transition-colors"
+            aria-label={isCollapsed ? "Étendre" : "Réduire"}
+          >
+            {isCollapsed ? <ChevronRight className="w-5 h-5 text-text-subtle" /> : <ChevronLeft className="w-5 h-5 text-text-subtle" />}
+          </button>
         </div>
 
         {/* User Card */}
@@ -450,8 +448,8 @@ export default function Sidebar() {
               href="/dashboard/whatsapp"
               className="flex items-center gap-3 p-3 rounded-xl bg-panel-hover hover:bg-primary/5 transition-all group"
             >
-              <div className={`w-2 h-2 rounded-full ${botStatus === "connected" ? "bg-accent" :
-                botStatus === "connecting" ? "bg-primary animate-pulse" :
+              <div className={`w-2 h-2 rounded-full ${botStatus === "online" ? "bg-accent" :
+                botStatus === "loading" ? "bg-primary animate-pulse" :
                   "bg-text-subtle"
                 }`}></div>
               <div className="flex-1 min-w-0">

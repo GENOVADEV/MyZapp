@@ -25,6 +25,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import ProfileDropdown from "./profileDropdown";
+import Sidebar from "./sidebar";
 
 export default function DashboardHeader() {
   const { user, logout } = useAuth();
@@ -107,12 +108,22 @@ export default function DashboardHeader() {
       className="sticky top-0 z-50 -mb-8 bg-panel border-b border-border-main backdrop-blur-sm bg-panel/95"
     >
       <div className="flex flex-col-3 items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
+        {/* --- BOUTON MENU MOBILE --- */}
+        <div className="flex md:hidden items-center">
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="text-text-main hover:text-primary focus:outline-none focus-ring p-2 rounded-md transition-colors"
+            aria-label="Ouvrir le menu principal"
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
 
         {/* Center - Search Bar */}
         <div className="flex-1 flex justify-center px-2 sm:px-4">
           <div className="flex flex-col-1 space-y-2 relative w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-xl">
             <div>
-              <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-text-subtle"/>
+              <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-text-subtle" />
             </div>
             <div className="w-full ml-4">
               <input
@@ -235,19 +246,10 @@ export default function DashboardHeader() {
 
       {/* Mobile Search Menu */}
       {isMobileMenuOpen && (
-        <div className="fixed top-16 left-0 right-0 z-40 bg-panel border-b border-border-main p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-subtle" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher..."
-              className="w-full pl-10 pr-4 py-2 bg-background-app border border-border-main rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              autoFocus
-            />
-          </div>
-        </div>
+        <Sidebar
+          isMobileOpen={isMobileMenuOpen}
+          setIsMobileOpen={setIsMobileMenuOpen}
+        />
       )}
     </header>
   );
