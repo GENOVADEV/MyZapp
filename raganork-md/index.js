@@ -98,8 +98,7 @@ async function main() {
   logger.info(`Configured sessions: ${config.SESSION.join(", ")}`);
 
   if (config.SESSION.length === 0) {
-    const warnMsg =
-      "⚠️ No sessions configured. Please add a session in the database or set SESSION environment variable.";
+    const warnMsg ="⚠️ No sessions configured. Please add a session in the database or set SESSION environment variable.";
     console.warn(warnMsg);
     logger.warn(warnMsg);
     return

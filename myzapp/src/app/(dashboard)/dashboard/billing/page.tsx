@@ -244,7 +244,52 @@ export default function BillingPage() {
               {/* --- VUE 2 : FORMULAIRE MOBILE MONEY --- */}
               {paymentMethod === 'momo' && (
                 <div className="space-y-4 animate-in slide-in-from-right-4">
-                  {/* ... (Ton code pour le numéro de téléphone et le loader momo reste le même ici) ... */}
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="phone"
+                      className="text-sm font-medium leading-none text-gray-700"
+                    >
+                      Numéro Mobile Money (Orange ou MTN)
+                    </label>
+                    <div className="flex rounded-md shadow-sm">
+                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm font-semibold">
+                        +237
+                      </span>
+                      <input
+                        type="tel"
+                        name="phone"
+                        id="phone"
+                        required
+                        maxLength={9}
+                        className="flex h-10 w-full rounded-r-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                        placeholder="6XX XX XX XX"
+                        value={phoneNumber} // Assure-toi d'avoir un state const [phoneNumber, setPhoneNumber] = useState('')
+                        onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))} // N'accepte que les chiffres
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Garde ton téléphone déverrouillé à proximité pour valider le code PIN.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleCheckout('momo')} // La fonction qui appelle ton API Campay
+                    disabled={isLoading || phoneNumber.length < 9}
+                    className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#00b517] hover:bg-[#009613] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00b517] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isLoading ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Demande envoyée sur le téléphone...
+                      </>
+                    ) : (
+                      "Payer via Mobile Money"
+                    )}
+                  </button>
                 </div>
               )}
 
