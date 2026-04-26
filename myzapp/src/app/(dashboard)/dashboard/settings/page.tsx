@@ -9,7 +9,6 @@ import {
   Shield,
   Globe,
   Palette,
-  Key,
   Mail,
   Phone,
   Lock,
