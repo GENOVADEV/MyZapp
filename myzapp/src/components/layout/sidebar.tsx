@@ -445,7 +445,7 @@ export default function Sidebar({ isMobileOpen: isMobileOpenProp, setIsMobileOpe
         {!isCollapsed && (
           <div className="px-4 pt-4 p-2 -mb-2 -mt-2">
             <Link
-              href="/dashboard/whatsapp"
+              href="/dashboard"
               className="flex items-center gap-3 p-3 rounded-xl bg-panel-hover hover:bg-primary/5 transition-all group"
             >
               <div className={`w-2 h-2 rounded-full ${botStatus === "online" ? "bg-accent" :

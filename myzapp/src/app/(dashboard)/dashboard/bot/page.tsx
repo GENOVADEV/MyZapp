@@ -53,7 +53,7 @@ export default function WhatsAppConnectionPage() {
   // Lier la session à MyZapp
   const handleConnectSession = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sessionIdInput.trim()) {
+    if (!sessionIdInput.trim() || sessionIdInput.length !== 13 || sessionIdInput.split("~")[0] !== "RGNK") {
       setError("Veuillez entrer un ID de session valide.");
       return;
     }
