@@ -1,6 +1,6 @@
 {
-  "name": "raganork-md",
-  "version": "6.2.28",
+  "name": "MyZapp",
+  "version": "6.2.27",
   "description": "A multi functional wa bot.",
   "main": "index.js",
   "type": "commonjs",
@@ -11,9 +11,9 @@
     "whatsapp",
     "bot",
     "baileys",
-    "raganork"
+    "MyZapp"
   ],
-  "author": "Sourav K",
+  "author": "MrNeil",
   "license": "GPL-3.0-or-later",
   "dependencies": {
     "@vitalets/google-translate-api": "^9.2.1",

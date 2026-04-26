@@ -8,6 +8,7 @@ const { uploadToImgbb } = require("./utils/upload");
 const { setVar } = require("./manage");
 const { getTotalUserCount } = require("../core/store");
 const { parseAliveMessage, sendAliveMessage } = require("./utils/alive-parser");
+const { BotUsageDB } = require("./utils/db/models");
 
 const isPrivateMode = MODE === "private";
 
@@ -51,9 +52,8 @@ Module(
     let infoMessage = `*───「 Command Details 」───*\n\n`;
     infoMessage += `• *Command:* \`${commandDetails.name}\`\n`;
     infoMessage += `• *Description:* ${commandDetails.desc || "N/A"}\n`;
-    infoMessage += `• *Owner Command:* ${
-      commandDetails.fromMe ? "Yes" : "No"
-    }\n`;
+    infoMessage += `• *Owner Command:* ${commandDetails.fromMe ? "Yes" : "No"
+      }\n`;
     if (commandDetails.use) infoMessage += `• *Type:* ${commandDetails.use}\n`;
     if (commandDetails.usage)
       infoMessage += `• *Usage:* ${commandDetails.name} ${commandDetails.usage}\n`;
@@ -63,6 +63,59 @@ Module(
     await message.sendReply(infoMessage);
   }
 );
+
+Module({
+  pattern: "plan ?(.*)",
+  fromMe: isPrivateMode,
+  use: 'utility',
+  desc: 'Affiche votre abonnement.'
+}, async (message, match) => {
+  try {
+    const botPhone = message.client.user.id.split(':')[0].replace(/[^0-9]/g, '');
+    
+    // On recrée la date exacte de Minuit UTC pour que la DB la reconnaisse
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayDate = new Date(`${todayStr}T00:00:00.000Z`);
+
+    // Étape A : Recherche du Forfait (Le SQL ici marche car on interroge des tables Prisma gérées différemment)
+    const [appSessions] = await config.sequelize.query(`
+        SELECT "userId" FROM "AppWhatsAppSessions" WHERE "botPhone" = '${botPhone}' LIMIT 1;
+    `);
+
+    let plan = 'FREE';
+    if (appSessions.length > 0) {
+        const userId = appSessions[0].userId;
+        const [userCheck] = await config.sequelize.query(`SELECT plan FROM "User" WHERE id = '${userId}' LIMIT 1;`);
+        if (userCheck.length > 0) plan = userCheck[0].plan;
+    }
+
+    // Étape B : Recherche de la consommation via l'ORM (Fini le SQL qui plante !)
+    let usage = 0;
+    const usageRecord = await BotUsageDB.findOne({
+        where: { sessionId: botPhone, date: todayDate }
+    });
+
+    if (usageRecord) {
+      usage = usageRecord.commandCount;
+    }
+
+    const limits = { FREE: 50, YOUNG: 150, AGENT: 300, BUSINESS: 1000, PRO: 'Illimité' };
+    const max = limits[plan] || 50;
+    const progress = plan === 'PRO' ? '∞' : `${usage}/${max}`;
+
+    let response = `*───「 📊 VOTRE FORFAIT 」───*\n\n`;
+    response += `👤 *Compte:* ${plan}\n`;
+    response += `📈 *Consommation:* ${progress}\n`;
+    response += `🟢 *Statut:* ${usage >= max && plan !== 'PRO' ? '🔴 Limite atteinte' : 'Actif'}\n\n`;
+    response += `_Bot Numéro : +${botPhone}_`;
+
+    await message.sendReply(response);
+
+  } catch (error) {
+    console.error("❌ Erreur .plan :", error);
+    await message.sendReply(`_⚠️ Erreur système lors de la récupération du forfait._`);
+  }
+});
 
 Module(
   {
@@ -322,13 +375,11 @@ Module(
       for (const x of cmd_obj[n]) {
         i = i + 1;
         const newn = n.charAt(0).toUpperCase() + n.slice(1);
-        final += `${
-          final.includes(newn) ? "" : "\n\n╭════〘 *_`" + newn + "`_* 〙════⊷❍"
-        }\n┃${star}│ _\`${i}.\` ${handlerPrefix}${x.trim()}_${
-          cmd_obj[n]?.indexOf(x) === cmd_obj[n]?.length - 1
+        final += `${final.includes(newn) ? "" : "\n\n╭════〘 *_`" + newn + "`_* 〙════⊷❍"
+          }\n┃${star}│ _\`${i}.\` ${handlerPrefix}${x.trim()}_${cmd_obj[n]?.indexOf(x) === cmd_obj[n]?.length - 1
             ? `\n┃${star}╰─────────────────❍\n╰══════════════════⊷❍`
             : ""
-        }`;
+          }`;
       }
     }
 
@@ -337,7 +388,7 @@ Module(
     const total = bytesToSize(os.totalmem());
     const totalUsers = await getTotalUserCount();
     const infoParts = config.BOT_INFO.split(";");
-    const botName = infoParts[0] || "My Bot";
+    const botName = infoParts[0] || "MyZapp";
     const botOwner = infoParts[1] || "N/A";
     const botVersion = VERSION;
     let botImageLink = infoParts[2] || "";

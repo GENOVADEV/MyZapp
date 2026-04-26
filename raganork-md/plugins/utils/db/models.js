@@ -3,6 +3,50 @@ const config = require("../../../config");
 
 config.sequelize.sync();
 
+const BotUsageDB = config.sequelize.define("bot_usage", {
+  sessionId: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  date: {
+    type: DataTypes.DATEONLY, // Stocke uniquement la date (ex: 2026-04-20)
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+  },
+  commandCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+});
+
+const UserDB = config.sequelize.define("User", {
+  id: {
+    type: DataTypes.STRING,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  name: DataTypes.STRING,
+  plan: {
+    type: DataTypes.STRING,
+    defaultValue: "FREE" // 'FREE', 'PRO', 'PREMIUM'
+  }
+}, {
+  tableName: "User" // ⚠️ Force le nom exact de Prisma
+});
+
+const WhatsAppSessionDB = config.sequelize.define("WhatsAppSession", {
+  id: {
+    type: DataTypes.STRING, // Correspondra à ton 'DzOoeUY8'
+    primaryKey: true
+  },
+  sessionId: DataTypes.STRING,
+  userId: {
+    type: DataTypes.STRING,
+  }
+}, {
+  tableName: "AppWhatsAppSession" // ⚠️ Force la création de la bonne table !
+});
+
 const warnDB = config.sequelize.define("_warn", {
   chat: {
     type: DataTypes.STRING,
@@ -196,6 +240,9 @@ const FilterDB = config.sequelize.define("filter", {
 });
 
 module.exports = {
+  UserDB,
+  WhatsAppSessionDB,
+  BotUsageDB,
   warnDB,
   FakeDB,
   antilinkDB, // Legacy - will be removed

@@ -2,10 +2,10 @@ const config = require("../config");
 const { BotUsageDB } = require("../plugins/utils/db/models");
 
 const PLAN_LIMITS = {
-    FREE: { name: "Gratuit 🥉", maxDailyCommands: 50, allowedFeatures: ["general", "utility", "search"] },
+    FREE: { name: "Gratuit 🥉", maxDailyCommands: 50, allowedFeatures: ["general", "utility", "search", "misc"] },
     YOUNG: { name: "Young 🌱", maxDailyCommands: 150, allowedFeatures: ["general", "utility", "search", "misc", "download", "edit", "converters", "whatsapp"] },
     AGENT: { name: "Agent 🕵️‍♂️", maxDailyCommands: 300, allowedFeatures: ["general", "utility", "search", "misc", "download", "edit", "converters", "whatsapp", "group"] },
-    BUSINESS: { name: "Business 💼", maxDailyCommands: 1000, allowedFeatures: ["general", "utility", "search", "misc", "download", "edit", "converters", "whatsapp", "group"] },
+    BUSINESS: { name: "Business 💼", maxDailyCommands: 1000, allowedFeatures: ["general", "utility", "search", "misc", "download", "edit", "converters", "whatsapp", "group", "settings", "system"] },
     PRO: { name: "Pro 🚀", maxDailyCommands: 999999, allowedFeatures: ["all"] }
 };
 

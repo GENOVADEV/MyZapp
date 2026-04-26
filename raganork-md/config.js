@@ -1,6 +1,9 @@
 const P = require("pino");
 const fs = require("fs");
 const { Sequelize } = require("sequelize");
+if (fs.existsSync("./config.env")) {
+  require("dotenv").config({ path: "./config.env" });
+}
 
 function convertToBool(text, fault = "true", fault2 = "on") {
   return text === fault || text === fault2;
@@ -134,14 +137,23 @@ const sequelize = (() => {
     const sqliteInstance = new Sequelize({
       dialect: "sqlite",
       storage: DATABASE_URL,
-      logging: DEBUG,
+      logging: false, // Désactive les logs SQL pour gagner en performance
+      transactionType: 'IMMEDIATE', // Aide à prévenir les verrous simultanés
       retry: {
-        match: [/SQLITE_BUSY/, /database is locked/, /EBUSY/],
-        max: 3,
+        match: [
+          /SQLITE_BUSY/,
+          /database is locked/,
+          /EBUSY/,
+          /SQLITE_RESTART/
+        ],
+        max: 10, // On augmente les tentatives
+      },
+      dialectOptions: {
+        connectTimeout: 20000 // On donne 20s de battement
       },
       pool: {
-        max: 5,
-        min: 1,
+        max: 1, // CRITIQUE pour SQLite : 1 seule connexion en écriture
+        min: 0,
         acquire: 30000,
         idle: 10000,
       },
@@ -188,7 +200,7 @@ const baseConfig = {
   VERSION,
   ALIVE:
     process.env.ALIVE ||
-    "_I am alive! (use .setalive help for custom alive msg)_",
+    "_🟢 MyZapp est en ligne et prêt à vous servir !_",
   BLOCK_CHAT: process.env.BLOCK_CHAT || "",
   PM_ANTISPAM: convertToBool(process.env.PM_ANTISPAM) || "",
   ALWAYS_ONLINE: convertToBool(process.env.ALWAYS_ONLINE) || false,
@@ -197,18 +209,18 @@ const baseConfig = {
   PLATFORM: isHeroku
     ? "Heroku"
     : isRailway
-    ? "Railway"
-    : isKoyeb
-    ? "Koyeb"
-    : "Other server",
+      ? "Railway"
+      : isKoyeb
+        ? "Koyeb"
+        : "Other server",
   isHeroku,
   isKoyeb,
   isVPS,
   isRailway,
   AUTOMUTE_MSG:
-    process.env.AUTOMUTE_MSG || "_Group automuted!_\n_(edit AUTOMUTE_MSG)_",
+    process.env.AUTOMUTE_MSG || "_🔇 Le groupe a été mis en sourdine automatiquement !_",
   ANTIWORD_WARN: process.env.ANTIWORD_WARN || "",
-  ANTI_SPAM: process.env.ANTI_SPAM || "919074309534-1632403322@g.us",
+  ANTI_SPAM: process.env.ANTI_SPAM || " ",
   MULTI_HANDLERS: convertToBool(process.env.MULTI_HANDLERS) || false,
   DISABLE_START_MESSAGE:
     convertToBool(process.env.DISABLE_START_MESSAGE) || false,
@@ -220,31 +232,30 @@ const baseConfig = {
   ANTI_BOT: process.env.ANTI_BOT || "",
   ANTISPAM_COUNT: process.env.ANTISPAM_COUNT || "6/10",
   AUTOUNMUTE_MSG:
-    process.env.AUTOUNMUTE_MSG ||
-    "_Group auto unmuted!_\n_(edit AUTOUNMUTE_MSG)_",
-  AUTO_READ_STATUS: convertToBool(process.env.AUTO_READ_STATUS) || false,
+    process.env.AUTOUNMUTE_MSG || "_🔊 Le groupe est de nouveau ouvert !_",
+      AUTO_READ_STATUS: convertToBool(process.env.AUTO_READ_STATUS) || false,
   READ_MESSAGES: convertToBool(process.env.READ_MESSAGES) || false,
   PMB_VAR: convertToBool(process.env.PMB_VAR) || false,
   DIS_PM: convertToBool(process.env.DIS_PM) || false,
   REJECT_CALLS: convertToBool(process.env.REJECT_CALLS) || false,
   ALLOWED_CALLS: process.env.ALLOWED_CALLS || "",
-  CALL_REJECT_MESSAGE: process.env.CALL_REJECT_MESSAGE || "",
-  PMB: process.env.PMB || "_Personal messages not allowed, BLOCKED!_",
+  CALL_REJECT_MESSAGE: process.env.CALL_REJECT_MESSAGE || "_❌ Je ne peux pas répondre aux appels vocaux actuellement. Écrivez-moi un message !_",
+  PMB: process.env.PMB || "_⚠️ Les messages privés ne sont pas autorisés sur ce numéro._",
   READ_COMMAND: convertToBool(process.env.READ_COMMAND) || true,
   IMGBB_KEY: [
     "76a050f031972d9f27e329d767dd988f",
     "deb80cd12ababea1c9b9a8ad6ce3fab2",
     "78c84c62b32a88e86daf87dd509a657a",
   ],
-  RG: process.env.RG || "919074309534-1632403322@g.us,120363116963909366@g.us",
-  BOT_INFO: process.env.BOT_INFO || "𝖱𝖺𝗀𝖺𝗇𝗈𝗋𝗄;𝖱𝗒𝗓𝖾𝗇;default",
+  RG: process.env.RG || "",
+  BOT_INFO: process.env.BOT_INFO || "MyZapp;Admin;https://i.ibb.co/B5zfCh3V/temp.jpg",
   RBG_KEY: process.env.RBG_KEY || "",
   ALLOWED: process.env.ALLOWED || "91,94,2",
   NOT_ALLOWED: process.env.NOT_ALLOWED || "852",
   CHATBOT: process.env.CHATBOT || "off",
   HANDLERS: process.env.HANDLERS || ".,",
-  STICKER_DATA: process.env.STICKER_DATA || "Raganork",
-  BOT_NAME: process.env.BOT_NAME || "Raganork",
+  STICKER_DATA: process.env.STICKER_DATA || "MyZapp",
+  BOT_NAME: process.env.BOT_NAME || "MyZapp",
   AUDIO_DATA:
     process.env.AUDIO_DATA === undefined || process.env.AUDIO_DATA === "private"
       ? "default"
