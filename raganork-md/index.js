@@ -32,29 +32,6 @@ async function main() {
     await initializeDatabase();
     await config.sequelize.sync();
     console.log("- Database tables synced");
-    // async function seedData() {
-    //   try {
-    //     // On utilise les nouveaux modèles AppUser et AppWhatsAppSession
-    //     const [user, created] = await UserDB.findOrCreate({
-    //       where: { name: "Admin" },
-    //       defaults: { plan: "FREE" }
-    //     });
-
-    //     const sessions = ["DzOoeUY8", "wlsa5usE"];
-    //     for (const id of sessions) {
-    //       await WhatsAppSessionDB.findOrCreate({
-    //         where: { id: id },
-    //         defaults: { sessionId: id, userId: user.id }
-    //       });
-    //     }
-
-    //     console.log("✅ Sessions DzOoeUY8 et wlsa5usE prêtes !");
-    //   } catch (e) {
-    //     console.error("❌ Erreur seedData:", e.message);
-    //   }
-    // };
-    // await new Promise(res => setTimeout(res, 2000));
-    // await seedData();
     console.log("- Database initialized and ready");
     await new Promise(resolve => setTimeout(resolve, 500));
     logger.info("Database initialized successfully.");
@@ -98,10 +75,9 @@ async function main() {
   logger.info(`Configured sessions: ${config.SESSION.join(", ")}`);
 
   if (config.SESSION.length === 0) {
-    const warnMsg ="⚠️ No sessions configured. Please add a session in the database or set SESSION environment variable.";
+    const warnMsg ="⚠️ No sessions configured.";
     console.warn(warnMsg);
     logger.warn(warnMsg);
-    const botManager = new BotManager();
   }
   // =========================================================================
 
