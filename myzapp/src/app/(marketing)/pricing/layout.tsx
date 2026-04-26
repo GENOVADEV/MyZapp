@@ -1,7 +1,7 @@
 // src/app/layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css"; // Assure-toi que le chemin vers ton CSS est correct
+import "@/app/globals.css"; // Assure-toi que le chemin vers ton CSS est correct
 import { Toaster } from "sonner"; // Optionnel: garde-le si tu veux des pop-ups de notification
 
 const inter = Inter({ subsets: ["latin"] });
