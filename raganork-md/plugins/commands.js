@@ -79,7 +79,7 @@ Module({
 
     // Étape A : Recherche du Forfait (Le SQL ici marche car on interroge des tables Prisma gérées différemment)
     const [appSessions] = await config.sequelize.query(`
-        SELECT "userId" FROM "AppWhatsAppSession" WHERE "botPhone" = '${botPhone}' LIMIT 1;
+        SELECT "userId" FROM "AppWhatsAppSessions" WHERE "botPhone" = '${botPhone}' LIMIT 1;
     `);
 
     let plan = 'FREE';
