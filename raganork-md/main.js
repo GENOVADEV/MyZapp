@@ -1,5 +1,5 @@
 const config = require("./config");
-import checkUserLimits from "./core/subscription";
+const checkUserLimits = require("./core/subscription");
 
 const Commands = [];
 let commandPrefix;

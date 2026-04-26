@@ -1,5 +1,4 @@
 const path = require("path");
-global.checkUserLimits = async () => { return true; };
 const fs = require("fs");
 const { UserDB, WhatsAppSessionDB } = require("./plugins/utils/db/models");
 if (fs.existsSync("./config.env")) {
