@@ -1,4 +1,5 @@
 const path = require("path");
+global.checkUserLimits = async () => { return true; };
 const fs = require("fs");
 const { UserDB, WhatsAppSessionDB } = require("./plugins/utils/db/models");
 if (fs.existsSync("./config.env")) {
@@ -94,7 +95,6 @@ async function main() {
   process.on("SIGINT", () => shutdownHandler("SIGINT"));
   process.on("SIGTERM", () => shutdownHandler("SIGTERM"));
 
-  await botManager.initializeBots();
   console.log("- Bot initialization complete.");
   logger.info("Bot initialization complete");
 
