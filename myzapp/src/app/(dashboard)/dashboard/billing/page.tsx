@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import StripeForm from '@/components/ui/StripeForm'; // Ajuste le chemin selon où tu l'as mis
+import InternationalPhoneInput from '@/components/ui/InternationalPhoneInput'; // Ajuste le chemin selon ton dossier
 
 // On charge Stripe en dehors du composant pour ne pas le recharger à chaque rendu
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string);
@@ -249,33 +250,30 @@ export default function BillingPage() {
                       htmlFor="phone"
                       className="text-sm font-medium leading-none text-gray-700"
                     >
-                      Numéro Mobile Money (Orange ou MTN)
+                      Numéro Mobile Money
                     </label>
-                    <div className="flex rounded-md shadow-sm">
-                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm font-semibold">
-                        +237
-                      </span>
-                      <input
-                        type="tel"
-                        name="phone"
-                        id="phone"
-                        required
-                        maxLength={9}
-                        className="flex h-10 w-full rounded-r-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                        placeholder="6XX XX XX XX"
-                        value={phoneNumber} // Assure-toi d'avoir un state const [phoneNumber, setPhoneNumber] = useState('')
-                        onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))} // N'accepte que les chiffres
-                        disabled={isLoading}
-                      />
-                    </div>
+
+                    {/* 🟢 TON NOUVEAU COMPOSANT ICI */}
+                    <InternationalPhoneInput
+                      value={phoneNumber}
+                      onChange={(val) => setPhoneNumber(val)} // 'val' contient le numéro avec le code pays, ex: "+237689123644"
+                    />
+
                     <p className="text-xs text-gray-500 mt-1">
                       Garde ton téléphone déverrouillé à proximité pour valider le code PIN.
                     </p>
                   </div>
 
                   <button
-                    onClick={() => handleCheckout('momo')} // La fonction qui appelle ton API Campay
-                    disabled={isLoading || phoneNumber.length < 9}
+                    onClick={() => {
+                      // ⚠️ ASTUCE DE PRO POUR CAMPAY :
+                      // La librairie renvoie "+237689...", mais Campay préfère souvent "237689..." (sans le plus).
+                      // Si ton API gère le retrait du "+", tu peux juste appeler handleCheckout('momo').
+                      // Sinon, fais ceci :
+                      handleCheckout('momo');
+                    }}
+                    // On désactive si c'est vide ou si la longueur est trop courte pour un numéro international (ex: +237 6XX XX XX XX = 13 caractères)
+                    disabled={isLoading || !phoneNumber || phoneNumber.length < 12}
                     className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#00b517] hover:bg-[#009613] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00b517] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {isLoading ? (

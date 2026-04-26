@@ -85,15 +85,19 @@ function Module(info, func) {
       }
 
       // 🧹 LA SUPPRESSION AUTO DE LA COMMANDE (Mode Ninja)
-      if (isExplicitCommand) {
-        try {
-          const isGroup = message.jid && message.jid.endsWith('@g.us');
-          if (isGroup) {
-            await message.client.sendMessage(message.jid, { delete: message.key });
-          }
-        } catch (deleteError) {
+      if (isExplicitCommand && message.key && message.key.id) {
+        // On fabrique une clé chirurgicale parfaite pour éviter le crash de Baileys
+        const cleanKey = {
+          remoteJid: message.key.remoteJid || message.jid,
+          id: message.key.id,
+          fromMe: message.key.fromMe !== undefined ? message.key.fromMe : (message.fromMe || false),
+          participant: message.key.participant || undefined
+        };
+
+        // On lance la suppression avec la clé nettoyée
+        message.client.sendMessage(message.jid, { delete: cleanKey }).catch(() => {
           console.log(`[Auto-Delete] Impossible de supprimer la commande.`);
-        }
+        });
       }
 
       return await func(message, match);

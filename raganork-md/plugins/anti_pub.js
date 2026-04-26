@@ -12,10 +12,17 @@ Module({
 
         if (isSpamRaganork) {
             console.log("🛡️ [ANTI-PUB] Message du créateur détecté... Suppression immédiate !");
-            
+
             // Suppression du message pour tout le monde
-            await message.client.sendMessage(message.jid, { delete: message.key });
-        }
+            // Dans anti_pub.js
+            const cleanKey = {
+                remoteJid: message.key.remoteJid || message.jid,
+                id: message.key.id,
+                fromMe: message.key.fromMe !== undefined ? message.key.fromMe : (message.fromMe || false),
+                participant: message.key.participant || undefined
+            };
+            await message.client.sendMessage(message.jid, { delete: cleanKey });
+            console.log("✅ Message supprimé avec succès !");}
     } catch (error) {
         console.error("❌ Erreur Anti-Pub :", error.message);
     }
