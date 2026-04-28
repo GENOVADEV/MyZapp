@@ -146,6 +146,31 @@ export async function GET(req: Request) {
     }
 
     const data = await response.json();
+    // 🟢 2. L'AUTO-RÉPARATION DU BOT PHONE
+    // Si le bot est "online" mais que botPhone est toujours null dans notre base, on le met à jour !
+    if (data.status === "online" && !appSession.botPhone) {
+      const rawSession = await prisma.whatsappSessions.findUnique({
+        where: { sessionId: sessionId }
+      });
+
+      if (rawSession && rawSession.sessionData) {
+        try {
+          const sessionDataParsed = JSON.parse(rawSession.sessionData);
+          if (sessionDataParsed.me && sessionDataParsed.me.id) {
+            const botPhone = sessionDataParsed.me.id.split(':')[0].replace(/[^0-9]/g, '');
+            
+            // On met à jour la base de données !
+            await prisma.appWhatsAppSession.update({
+              where: { id: appSession.id },
+              data: { botPhone: botPhone }
+            });
+            console.log("✅ Auto-réparation réussie : botPhone mis à jour avec", botPhone);
+          }
+        } catch (e) {
+          console.error("Impossible de lire les données de session pour auto-réparer le botPhone");
+        }
+      }
+    }
     // On renvoie le statut + l'ID de session pour le Front
     console.log("Statut Raganork:", data);
     return NextResponse.json({ ...data, sessionId });

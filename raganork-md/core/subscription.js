@@ -73,7 +73,11 @@ async function checkUserLimits(botPhone, commandCategory, isSudo = false, isExpl
         }
 
         const dynamicLimits = await getDynamicLimits();
-        const limits = dynamicLimits[userPlan] || dynamicLimits.FREE;
+        const limits = dynamicLimits[userPlan] || dynamicLimits.FREE|| { 
+            name: "Secours 🛟", 
+            maxDailyCommands: 50, 
+            allowedFeatures: ["general"] // On autorise tout temporairement pour éviter le crash
+        };
         const category = (commandCategory || "general").toLowerCase();
 
         // 2. Gestion des plugins "Fantômes"
