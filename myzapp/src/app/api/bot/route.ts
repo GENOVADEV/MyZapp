@@ -8,6 +8,28 @@ const prisma = new PrismaClient();
 const RAGANORK_URL = process.env.RAGANORK_API_URL || "http://localhost:3001";
 const BOT_API_SECRET = process.env.BOT_API_SECRET;
 
+// Fonction magique pour ouvrir les poupées russes de Baileys/Raganork
+function extractPhoneFromSession(sessionDataString : any) {
+  if (!sessionDataString) return null;
+  try {
+    const data = JSON.parse(sessionDataString);
+    let creds = data;
+    
+    // Si creds.json est un texte, on le re-transforme en objet (la 2ème poupée)
+    if (data["creds.json"] && typeof data["creds.json"] === "string") {
+      creds = JSON.parse(data["creds.json"]);
+    }
+
+    // On cherche le fameux "me" et son "id"
+    if (creds?.me?.id) {
+      return creds.me.id.split(':')[0].replace(/[^0-9]/g, ''); // Garde que le 237...
+    }
+  } catch (e) {
+    console.error("Erreur d'extraction du téléphone :", (e as Error).message);
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession();
@@ -147,29 +169,21 @@ export async function GET(req: Request) {
     const data = await response.json();
     
     // 🟢 2. L'AUTO-RÉPARATION DU BOT PHONE
-    if (data.status === "online" && !appSession.botPhone) {
+    if ((data.status === "online" || data.status === "connected") && !appSession.botPhone) {
       const rawSession = await prisma.whatsappSessions.findUnique({
         where: { sessionId: cleanSessionId }
       });
 
-      if (rawSession && rawSession.sessionData) {
-        try {
-          const sessionDataParsed = JSON.parse(rawSession.sessionData);
-          if (sessionDataParsed.me && sessionDataParsed.me.id) {
-            const botPhone = sessionDataParsed.me.id.split(':')[0].replace(/[^0-9]/g, '');
-            
-            await prisma.appWhatsAppSession.update({
-              where: { id: appSession.id },
-              data: { botPhone: botPhone }
-            });
-            console.log("✅ Auto-réparation réussie : botPhone mis à jour avec", botPhone);
-          }
-        } catch (e) {
-          console.error("Impossible de lire les données de session pour auto-réparer le botPhone");
-        }
+      const foundPhone = extractPhoneFromSession(rawSession?.sessionData);
+
+      if (foundPhone) {
+        await prisma.appWhatsAppSession.update({
+          where: { id: appSession.id },
+          data: { botPhone: foundPhone }
+        });
+        console.log("✅ Auto-réparation RÉUSSIE : botPhone =", foundPhone);
       }
     }
-    
     return NextResponse.json({ ...data, sessionId: appSession.id }); // On renvoie l'ID frontend d'origine
 
   } catch (error: any) {
