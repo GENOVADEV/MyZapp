@@ -37,21 +37,23 @@ export async function POST(req: Request) {
     };
 
     if (action === "start") {
-      // On lance le bot
+      // 🌟 CORRECTION CRUCIALE : On nettoie l'ID pour ne pas créer de doublons dans la DB !
+      const cleanSessionId = sessionId.replace('RGNK~', '');
+
+      // On lance le bot avec l'ID propre
       const response = await fetch(`${RAGANORK_URL}/start-session`, {
         method: "POST",
         headers: fetchHeaders,
-        body: JSON.stringify({ sessionId })
+        body: JSON.stringify({ sessionId: cleanSessionId })
       });
 
-      // 🟢 1. L'ASTUCE ANTI-CRASH (On crée le parent)
-      // On s'assure que la table mère possède bien cet ID avant d'insérer l'enfant.
+      // 🟢 1. L'ASTUCE ANTI-CRASH : On crée la coquille vide avec l'ID PROPRE
       await prisma.whatsappSessions.upsert({
-        where: { sessionId: sessionId },
-        update: {}, // S'il existe déjà, on ne touche à rien
+        where: { sessionId: cleanSessionId },
+        update: {}, 
         create: {
-          sessionId: sessionId,
-          sessionData: "", // Vide pour le moment, le bot le remplira
+          sessionId: cleanSessionId,
+          sessionData: "", 
           createdAt: new Date(),
           updatedAt: new Date()
         }
@@ -59,7 +61,7 @@ export async function POST(req: Request) {
 
       // On tente de voir si le bot a déjà rempli des données (pour le botPhone)
       const rawSession = await prisma.whatsappSessions.findUnique({
-        where: { sessionId: sessionId }
+        where: { sessionId: cleanSessionId }
       });
 
       let extractedBotPhone = null;
@@ -69,7 +71,6 @@ export async function POST(req: Request) {
         try {
           const data = JSON.parse(rawSession.sessionData);
           if (data.me && data.me.id) {
-            // Transforme "237689123644:1@s.whatsapp.net" en "237689123644"
             extractedBotPhone = data.me.id.split(':')[0].replace(/[^0-9]/g, '');
           }
         } catch (e) {
@@ -77,11 +78,11 @@ export async function POST(req: Request) {
         }
       }
 
-      // 🟢 2. On crée l'enfant en toute sécurité
+      // 🟢 2. On crée l'enfant en le liant au BON sessionId propre
       await prisma.appWhatsAppSession.upsert({
-        where: { id: sessionId },
-        update: { userId: userId, botPhone: extractedBotPhone },
-        create: { id: sessionId, sessionId: sessionId, userId: userId, botPhone: extractedBotPhone }
+        where: { id: sessionId }, // L'ID front-end reste avec RGNK~ (optionnel mais recommandé)
+        update: { userId: userId, botPhone: extractedBotPhone, sessionId: cleanSessionId },
+        create: { id: sessionId, sessionId: cleanSessionId, userId: userId, botPhone: extractedBotPhone }
       });
 
       const data = await response.json();
@@ -120,7 +121,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: "Non autorisé" }, { status: 401 });
     }
 
-    // 🌟 On cherche la session liée à cet utilisateur dans la base de données
     const dbUser = await prisma.user.findUnique({ where: { email: session.user.email } });
     if (!dbUser) throw new Error("User not found");
 
@@ -128,15 +128,14 @@ export async function GET(req: Request) {
       where: { userId: dbUser.id.replace("bot_", "") }
     });
 
-    // Si le user n'a pas encore lié de session Raganork, on le dit au front
     if (!appSession) {
       return NextResponse.json({ status: "offline", message: "Aucune session liée" });
     }
 
-    const sessionId = appSession.sessionId.replace('RGNK~', '');
+    // 🌟 On utilise toujours l'ID propre pour les recherches
+    const cleanSessionId = appSession.sessionId.replace('RGNK~', '');
 
-    // On vérifie sur Raganork si cette session tourne
-    const response = await fetch(`${RAGANORK_URL}/status?sessionId=${sessionId}`, {
+    const response = await fetch(`${RAGANORK_URL}/status?sessionId=${cleanSessionId}`, {
       method: "GET",
       headers: { "Authorization": `Bearer ${BOT_API_SECRET}` }
     });
@@ -146,11 +145,11 @@ export async function GET(req: Request) {
     }
 
     const data = await response.json();
+    
     // 🟢 2. L'AUTO-RÉPARATION DU BOT PHONE
-    // Si le bot est "online" mais que botPhone est toujours null dans notre base, on le met à jour !
     if (data.status === "online" && !appSession.botPhone) {
       const rawSession = await prisma.whatsappSessions.findUnique({
-        where: { sessionId: sessionId }
+        where: { sessionId: cleanSessionId }
       });
 
       if (rawSession && rawSession.sessionData) {
@@ -159,7 +158,6 @@ export async function GET(req: Request) {
           if (sessionDataParsed.me && sessionDataParsed.me.id) {
             const botPhone = sessionDataParsed.me.id.split(':')[0].replace(/[^0-9]/g, '');
             
-            // On met à jour la base de données !
             await prisma.appWhatsAppSession.update({
               where: { id: appSession.id },
               data: { botPhone: botPhone }
@@ -171,12 +169,10 @@ export async function GET(req: Request) {
         }
       }
     }
-    // On renvoie le statut + l'ID de session pour le Front
-    console.log("Statut Raganork:", data);
-    return NextResponse.json({ ...data, sessionId });
+    
+    return NextResponse.json({ ...data, sessionId: appSession.id }); // On renvoie l'ID frontend d'origine
 
   } catch (error: any) {
-    // Si Raganork est éteint, on ne crash pas, on dit juste que c'est hors ligne
     return NextResponse.json({ status: "offline", message: "Moteur Raganork hors ligne" }, { status: 200 });
   }
 }
