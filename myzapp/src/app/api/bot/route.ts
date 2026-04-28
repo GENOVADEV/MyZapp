@@ -37,33 +37,47 @@ export async function POST(req: Request) {
     };
 
     if (action === "start") {
-
+      // On lance le bot
       const response = await fetch(`${RAGANORK_URL}/start-session`, {
         method: "POST",
         headers: fetchHeaders,
         body: JSON.stringify({ sessionId })
       });
 
-      
+      // 🟢 1. L'ASTUCE ANTI-CRASH (On crée le parent)
+      // On s'assure que la table mère possède bien cet ID avant d'insérer l'enfant.
+      await prisma.whatsappSessions.upsert({
+        where: { sessionId: sessionId },
+        update: {}, // S'il existe déjà, on ne touche à rien
+        create: {
+          sessionId: sessionId,
+          sessionData: "", // Vide pour le moment, le bot le remplira
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+
+      // On tente de voir si le bot a déjà rempli des données (pour le botPhone)
       const rawSession = await prisma.whatsappSessions.findUnique({
-        where: { sessionId: sessionId.replace('RGNK~', '') }
+        where: { sessionId: sessionId }
       });
 
       let extractedBotPhone = null;
 
-      // 3. On extrait le numéro de téléphone !
+      // Extraction du numéro de téléphone
       if (rawSession && rawSession.sessionData) {
         try {
           const data = JSON.parse(rawSession.sessionData);
           if (data.me && data.me.id) {
-            // Transforme "33698267372:1@s.whatsapp.net" en "33698267372"
+            // Transforme "237689123644:1@s.whatsapp.net" en "237689123644"
             extractedBotPhone = data.me.id.split(':')[0].replace(/[^0-9]/g, '');
           }
         } catch (e) {
           console.error("Erreur de lecture des données du bot :", e);
         }
       }
-      // ✅ Plus d'erreur Prisma : userId est garanti d'exister !
+
+      // 🟢 2. On crée l'enfant en toute sécurité
       await prisma.appWhatsAppSession.upsert({
         where: { id: sessionId },
         update: { userId: userId, botPhone: extractedBotPhone },
@@ -76,7 +90,7 @@ export async function POST(req: Request) {
 
     if (action === "stop") {
       const appSession = await prisma.appWhatsAppSession.findFirst({
-        where: { userId: dbUser.id.replace("bot_", " ") }
+        where: { userId: dbUser.id.replace("bot_", "") }
       });
 
       const realSessionId = appSession ? appSession.sessionId.replace('RGNK~', '') : null;
@@ -111,7 +125,7 @@ export async function GET(req: Request) {
     if (!dbUser) throw new Error("User not found");
 
     const appSession = await prisma.appWhatsAppSession.findFirst({
-      where: { userId: dbUser.id.replace("bot_", " ") }
+      where: { userId: dbUser.id.replace("bot_", "") }
     });
 
     // Si le user n'a pas encore lié de session Raganork, on le dit au front
