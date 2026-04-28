@@ -19,6 +19,38 @@ const BotUsageDB = config.sequelize.define("bot_usage", {
   },
 });
 
+// 1. Modèle des Forfaits
+const PlanConfigDB = config.sequelize.define('PlanConfig', {
+  id: { type: DataTypes.STRING, primaryKey: true },
+  plan: { type: DataTypes.STRING, unique: true },
+  displayName: { type: DataTypes.STRING },
+  maxDailyCommands: { type: DataTypes.INTEGER },
+  priceXaf: { type: DataTypes.INTEGER },
+  priceEur: { type: DataTypes.INTEGER },
+  priceUsd: { type: DataTypes.INTEGER },
+  updatedAt: { type: DataTypes.DATE }
+}, {
+  tableName: 'plan_configs',
+  timestamps: false // On dit à Sequelize de ne pas gérer les dates car Prisma s'en charge
+});
+
+// 2. Modèle des Fonctionnalités (Features)
+const FeatureDB = config.sequelize.define('Feature', {
+  id: { type: DataTypes.STRING, primaryKey: true },
+  categoryCode: { type: DataTypes.STRING, unique: true },
+  displayName: { type: DataTypes.STRING },
+  description: { type: DataTypes.STRING },
+  allowedPlans: { type: DataTypes.ARRAY(DataTypes.STRING) }, // Sequelize gère les tableaux PostgreSQL !
+  isActive: { type: DataTypes.BOOLEAN },
+  createdAt: { type: DataTypes.DATE },
+  updatedAt: { type: DataTypes.DATE }
+}, {
+  tableName: 'features',
+  timestamps: false
+});
+
+// --- FIN DES NOUVEAUX MODÈLES ---
+
 const UserDB = config.sequelize.define("User", {
   id: {
     type: DataTypes.STRING,
@@ -243,6 +275,8 @@ module.exports = {
   UserDB,
   WhatsAppSessionDB,
   BotUsageDB,
+  PlanConfigDB,
+  FeatureDB,
   warnDB,
   FakeDB,
   antilinkDB, // Legacy - will be removed

@@ -1,13 +1,52 @@
 const config = require("../config");
-const { BotUsageDB } = require("../plugins/utils/db/models");
+const { BotUsageDB, PlanConfigDB, FeatureDB } = require("../plugins/utils/db/models");
 
-const PLAN_LIMITS = {
-    FREE: { name: "Gratuit 🥉", maxDailyCommands: 50, allowedFeatures: ["general", "utility", "search", "misc"] },
-    YOUNG: { name: "Young 🌱", maxDailyCommands: 150, allowedFeatures: ["general", "utility", "search", "misc", "download", "edit", "converters", "whatsapp"] },
-    AGENT: { name: "Agent 🕵️‍♂️", maxDailyCommands: 300, allowedFeatures: ["general", "utility", "search", "misc", "download", "edit", "converters", "whatsapp", "group"] },
-    BUSINESS: { name: "Business 💼", maxDailyCommands: 1000, allowedFeatures: ["general", "utility", "search", "misc", "download", "edit", "converters", "whatsapp", "group", "settings", "system"] },
-    PRO: { name: "Pro 🚀", maxDailyCommands: 999999, allowedFeatures: ["all"] }
-};
+// On crée des variables vides qui vont stocker les règles en mémoire
+let DYNAMIC_PLAN_LIMITS = null;
+let lastCacheUpdate = 0;
+
+// Fonction pour rafraîchir le cache toutes les 5 minutes (300 000 ms)
+async function getDynamicLimits() {
+    const now = Date.now();
+
+    // Si on a déjà les limites et qu'elles ont moins de 5 minutes, on les réutilise (Ultra rapide ⚡)
+    if (DYNAMIC_PLAN_LIMITS && (now - lastCacheUpdate < 300000)) {
+        return DYNAMIC_PLAN_LIMITS;
+    }
+
+    try {
+        // Sinon, on va lire la base de données PostgreSQL
+        const plans = await PlanConfigDB.findAll({ raw: true });
+        const features = await FeatureDB.findAll({ where: { isActive: true }, raw: true });
+
+        // On reconstruit l'objet à la volée exactement comme l'ancien PLAN_LIMITS !
+        const newLimits = {};
+
+        for (const p of plans) {
+            // On cherche toutes les features autorisées pour ce plan spécifique
+            const allowed = features
+                .filter(f => f.allowedPlans.includes(p.plan) || f.allowedPlans.includes("ALL"))
+                .map(f => f.categoryCode);
+
+            newLimits[p.plan] = {
+                name: p.displayName,
+                maxDailyCommands: p.maxDailyCommands,
+                allowedFeatures: allowed.length > 0 ? allowed : ["general"] // Sécurité par défaut
+            };
+        }
+
+        DYNAMIC_PLAN_LIMITS = newLimits;
+        lastCacheUpdate = now;
+        console.log("🔄 [SUBSCRIPTION] Règles des forfaits mises à jour depuis la BD !");
+
+        return DYNAMIC_PLAN_LIMITS;
+
+    } catch (error) {
+        console.error("❌ ERREUR CHARGEMENT FORFAITS :", error);
+        // En cas de gros crash de la BD, on renvoie un plan de secours pour ne pas bloquer le bot
+        return { FREE: { name: "Secours 🛟", maxDailyCommands: 50, allowedFeatures: ["general"] } };
+    }
+}
 
 // 🌟 LA MÉMOIRE CACHE (Garde les ID des messages déjà facturés)
 const processedMessages = new Set();
@@ -33,7 +72,8 @@ async function checkUserLimits(botPhone, commandCategory, isSudo = false, isExpl
             if (userRecords.length > 0) userPlan = userRecords[0].plan;
         }
 
-        const limits = PLAN_LIMITS[userPlan] || PLAN_LIMITS.FREE;
+        const dynamicLimits = await getDynamicLimits();
+        const limits = dynamicLimits[userPlan] || dynamicLimits.FREE;
         const category = (commandCategory || "general").toLowerCase();
 
         // 2. Gestion des plugins "Fantômes"
@@ -53,7 +93,7 @@ async function checkUserLimits(botPhone, commandCategory, isSudo = false, isExpl
 
         // A. On cherche la ligne du jour, si elle n'existe pas, on demande au moteur de la créer proprement
         let usage = await BotUsageDB.findOne({ where: { sessionId: botPhone, date: todayDate } });
-        
+
         if (!usage) {
             usage = await BotUsageDB.create({ sessionId: botPhone, date: todayDate, commandCount: 0 });
         }

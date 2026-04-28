@@ -152,11 +152,12 @@ model AuditLog {
 
 model AppWhatsAppSession {
   id        String @id
-  sessionId String
+  sessionId String @unique
   userId    String
   botPhone  String?
   user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  whatsappSession  WhatsappSessions @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
   @@index([userId])
   @@index([botPhone])
   @@map("AppWhatsAppSessions")
@@ -389,6 +390,39 @@ model WhatsappSessions {
   sessionData String?
   createdAt   DateTime @db.Timestamptz(6)
   updatedAt   DateTime @db.Timestamptz(6)
+
+  appWhatsAppSession AppWhatsAppSession?
+}
+
+model Feature {
+  id           String   @id @default(cuid())
+  categoryCode String   @unique // Le nom exact dans ton code bot (ex: "download", "misc", "general")
+  displayName  String   // Le joli nom pour le Dashboard (ex: "Téléchargements de Médias")
+  description  String?  // Explication pour tes clients (ex: "Permet de télécharger depuis TikTok et YouTube")
+  
+  // LE CŒUR DE LA LOGIQUE : Un tableau contenant les plans qui ont le droit d'utiliser cette feature
+  allowedPlans Plan[]   
+  
+  isActive     Boolean  @default(true) // Un bouton d'arrêt d'urgence global pour désactiver un plugin buggé
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("features")
+}
+
+model PlanConfig {
+  id               String   @id @default(cuid())
+  plan             Plan     @unique // FREE, YOUNG, etc.
+  displayName      String   // "Gratuit 🥉"
+  maxDailyCommands Int      // 50, 150, 1000...
+  priceXaf         Int      @default(0) // Pratique pour afficher le prix sur le site
+  priceEur         Int      @default(0)
+  priceUsd         Int      @default(0)
+  
+  updatedAt        DateTime @updatedAt
+
+  @@map("plan_configs")
 }
 
 model warns {

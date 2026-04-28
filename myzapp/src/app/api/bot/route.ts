@@ -27,25 +27,6 @@ export async function POST(req: Request) {
     const userId = dbUser.id;
     const { action, sessionId } = await req.json();
 
-    const rawSession = await prisma.whatsappSessions.findUnique({
-      where: { sessionId: sessionId.replace('RGNK~', '') }
-    });
-
-    let extractedBotPhone = null;
-
-    // 3. On extrait le numéro de téléphone !
-    if (rawSession && rawSession.sessionData) {
-      try {
-        const data = JSON.parse(rawSession.sessionData);
-        if (data.me && data.me.id) {
-          // Transforme "33698267372:1@s.whatsapp.net" en "33698267372"
-          extractedBotPhone = data.me.id.split(':')[0].replace(/[^0-9]/g, '');
-        }
-      } catch (e) {
-        console.error("Erreur de lecture des données du bot :", e);
-      }
-    }
-
     if (!sessionId && action === "start") {
       return NextResponse.json({ message: "Session ID manquant" }, { status: 400 });
     }
@@ -56,17 +37,37 @@ export async function POST(req: Request) {
     };
 
     if (action === "start") {
-      // ✅ Plus d'erreur Prisma : userId est garanti d'exister !
-      await prisma.appWhatsAppSession.upsert({
-        where: { id: sessionId },
-        update: { userId: userId, botPhone: extractedBotPhone },
-        create: { id: sessionId, sessionId: sessionId, userId: userId, botPhone: extractedBotPhone }
-      });
 
       const response = await fetch(`${RAGANORK_URL}/start-session`, {
         method: "POST",
         headers: fetchHeaders,
         body: JSON.stringify({ sessionId })
+      });
+
+      
+      const rawSession = await prisma.whatsappSessions.findUnique({
+        where: { sessionId: sessionId.replace('RGNK~', '') }
+      });
+
+      let extractedBotPhone = null;
+
+      // 3. On extrait le numéro de téléphone !
+      if (rawSession && rawSession.sessionData) {
+        try {
+          const data = JSON.parse(rawSession.sessionData);
+          if (data.me && data.me.id) {
+            // Transforme "33698267372:1@s.whatsapp.net" en "33698267372"
+            extractedBotPhone = data.me.id.split(':')[0].replace(/[^0-9]/g, '');
+          }
+        } catch (e) {
+          console.error("Erreur de lecture des données du bot :", e);
+        }
+      }
+      // ✅ Plus d'erreur Prisma : userId est garanti d'exister !
+      await prisma.appWhatsAppSession.upsert({
+        where: { id: sessionId },
+        update: { userId: userId, botPhone: extractedBotPhone },
+        create: { id: sessionId, sessionId: sessionId, userId: userId, botPhone: extractedBotPhone }
       });
 
       const data = await response.json();
