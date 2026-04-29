@@ -47,7 +47,6 @@ const config = require("../config");
 const { settingsMenu, ADMIN_ACCESS } = config;
 const fs = require("fs");
 const { BotVariable } = require("../core/database");
-const { use } = require("react");
 
 var handler = config.HANDLERS !== "false" ? config.HANDLERS.split("")[0] : "";
 
