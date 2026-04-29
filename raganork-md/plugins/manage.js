@@ -47,6 +47,7 @@ const config = require("../config");
 const { settingsMenu, ADMIN_ACCESS } = config;
 const fs = require("fs");
 const { BotVariable } = require("../core/database");
+const { use } = require("react");
 
 var handler = config.HANDLERS !== "false" ? config.HANDLERS.split("")[0] : "";
 
@@ -76,6 +77,7 @@ Module(
     fromMe: true,
     desc: "Set bot variables remotely",
     usage: ".setvar MY_VAR=some_value",
+    use : 'Admin'
   },
   async (message, args) => {
     const input = args[1];
@@ -110,6 +112,7 @@ Module(
     fromMe: true,
     desc: "Get bot variable value",
     usage: ".getvar MY_VAR",
+    use : 'Admin'
   },
   async (message, args) => {
     const key = args[1]?.trim();
@@ -134,6 +137,7 @@ Module(
     fromMe: true,
     desc: "Delete bot variable",
     usage: ".delvar MY_VAR",
+    use : 'Admin'
   },
   async (message, args) => {
     const key = args[1]?.trim();
@@ -161,6 +165,7 @@ Module(
     fromMe: true,
     desc: "Set environment variables in config.env",
     usage: ".setenv MY_VAR=some_value",
+    use : 'Admin'
   },
   async (message, args) => {
     const input = args[1];
@@ -270,7 +275,7 @@ Module(
     pattern: "settings ?(.*)",
     fromMe: true,
     desc: "Bot settings to enable extra options related to WhatsApp bot functionality.",
-    use: "owner",
+    use: "setting",
   },
   async (message, match) => {
     let configs = settingsMenu;
@@ -374,7 +379,7 @@ Module(
   {
     pattern: "setsudo ?(.*)",
     fromMe: true,
-    use: "owner",
+    use: "Admin",
   },
   async (message, mm) => {
     var m = message;
@@ -435,7 +440,7 @@ Module(
   {
     pattern: "getsudo ?(.*)",
     fromMe: true,
-    use: "owner",
+    use: "Admin",
   },
   async (message, match) => {
     let sudoMap = [];
@@ -470,6 +475,7 @@ Module(
     pattern: "delsudo ?(.*)",
     fromMe: true,
     desc: "Deletes sudo",
+    use: "Admin"
   },
   async (m, mm) => {
     let targetLid;

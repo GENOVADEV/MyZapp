@@ -1,5 +1,5 @@
 const config = require("./config");
-const {checkUserLimits} = require("./core/subscription");
+const { checkUserLimits } = require("./core/subscription");
 
 const Commands = [];
 let commandPrefix;
@@ -85,18 +85,28 @@ function Module(info, func) {
       }
 
       // 🧹 LA SUPPRESSION AUTO DE LA COMMANDE (Mode Ninja)
-      if (isExplicitCommand && message.key && message.key.id) {
-        // On fabrique une clé chirurgicale parfaite pour éviter le crash de Baileys
+      // ASTUCE SaaS : On ne supprime que si l'utilisateur a activé l'option sur son Dashboard !
+      // (Pour l'instant on met "true" pour tester, mais tu pourras le lier à ta DB via limitCheck)
+      const isAutoDeleteEnabled = true; // Plus tard : limitCheck.autoDeleteCmd
+
+      if (isExplicitCommand && message.key && message.key.id && isAutoDeleteEnabled) {
+
         const cleanKey = {
-          remoteJid: message.key.remoteJid || message.jid,
+          remoteJid: message.key.remoteJid,
           id: message.key.id,
-          fromMe: message.key.fromMe !== undefined ? message.key.fromMe : (message.fromMe || false),
+          fromMe: message.key.fromMe !== undefined ? message.key.fromMe : false,
           participant: message.key.participant || undefined
         };
 
-        // On lance la suppression avec la clé nettoyée
-        message.client.sendMessage(message.jid, { delete: cleanKey }).catch(() => {
-          console.log(`[Auto-Delete] Impossible de supprimer la commande.`);
+        // On utilise remoteJid qui est 100% fiable dans Baileys
+        const targetJid = message.key.remoteJid;
+
+        // On ne met pas de "await" ici ! 
+        // Le bot lance la suppression en arrière-plan et passe directement à l'exécution de la commande (gain de vitesse ⚡)
+        message.client.sendMessage(targetJid, { delete: cleanKey }).catch((err) => {
+          // On cache l'erreur dans la console. 
+          // Pourquoi ? Parce que si un membre tape une commande dans un groupe où le bot N'EST PAS ADMIN, 
+          // WhatsApp refusera la suppression. C'est normal, on l'ignore silencieusement.
         });
       }
 

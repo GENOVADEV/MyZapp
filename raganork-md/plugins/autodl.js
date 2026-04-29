@@ -484,6 +484,7 @@ Module(
     desc: "Auto-download URL watcher - enable in chats or globally",
     usage:
       ".autodl - show menu\n.autodl on/off - enable/disable in current chat\n.autodl on/off groups - enable/disable in all groups\n.autodl on/off dms - enable/disable in all DMs\n.autodl status - show current status",
+    use: 'download'  
   },
   async (message, match) => {
     const input = match[1]?.trim();

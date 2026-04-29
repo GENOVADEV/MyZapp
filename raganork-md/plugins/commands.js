@@ -223,6 +223,7 @@ Module(
     usage:
       ".setalive <message> (with placeholders)\n.setalive help (show formatting help)",
     dontAddCommandList: true,
+    use: 'Admin'
   },
   async (message, match) => {
     if (!match[1]) {
@@ -473,7 +474,7 @@ Module(
     pattern: "setinfo ?(.*)",
     fromMe: true,
     desc: "Shows info about bot configuration commands.",
-    use: "settings",
+    use: "utility",
   },
   async (message, match) => {
     const infoText = `*───「 Bot Info Configuration 」───*
@@ -512,7 +513,7 @@ Module(
     pattern: "setname ?(.*)",
     fromMe: true,
     desc: "Sets the bot name",
-    use: "settings",
+    use: "Admin",
   },
   async (message, match) => {
     const name = match[1]?.trim();
@@ -532,7 +533,7 @@ Module(
     pattern: "setowner ?(.*)",
     fromMe: true,
     desc: "Sets the bot owner",
-    use: "settings",
+    use: "Admin",
   },
   async (message, match) => {
     const owner = match[1]?.trim();
@@ -552,7 +553,7 @@ Module(
     pattern: "setimage",
     fromMe: true,
     desc: "Sets the bot image (reply to image)",
-    use: "settings",
+    use: "Admin",
   },
   async (message, match) => {
     if (!message.reply_message || !message.reply_message.image) {
