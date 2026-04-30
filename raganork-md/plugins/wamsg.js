@@ -169,3 +169,61 @@ Module(
     }
   }
 );
+
+Module(
+  {
+    // L'astuce est ici : on écoute TOUS les messages textuels en arrière-plan
+    on: "text", 
+    fromMe: false, // Ce plugin gère les messages des autres (et on gère le fromMe à l'intérieur)
+    desc: "Auto-supprime les commandes selon les préférences de l'utilisateur (SaaS)",
+  },
+  async (message) => {
+    try {
+      // 1. On ignore si le message est vide
+      if (!message.text) return;
+
+      // 2. On vérifie si c'est bien une commande (ex: commence par un point '.')
+      // Adapte la regex selon le préfixe de ton bot (ici on cherche les caractères spéciaux de base)
+      const isCommand = /^[!./#*]/.test(message.text.trim());
+      if (!isCommand) return; // Si c'est du blabla normal, on ignore.
+
+      // 3. Extraction de l'ID du bot (pour lire les préférences dans la DB)
+      const rawBotId = (message.client && message.client.user) ? message.client.user.id : null;
+      if (!rawBotId) return;
+      const botPhone = rawBotId.split(':')[0].split('@')[0].replace(/[^0-9]/g, '');
+
+      // 4. On lit les réglages depuis la base de données (ou le cache)
+      // L'idée est que checkUserLimits ou une autre fonction te renvoie les paramètres du dashboard
+      const settings = await checkUserLimits(botPhone, "general", false, false, "auto_delete_check");
+      
+      // La fameuse variable qui vient de ton Dashboard !
+      const isAutoDeleteEnabled = settings.autoDeleteCmd || false; 
+
+      // 5. Si l'option est désactivée, on s'arrête là.
+      if (!isAutoDeleteEnabled) return;
+
+      // 6. 🧹 EXECUTION DE LA SUPPRESSION 
+      // On fabrique la clé de suppression parfaite
+      const cleanKey = {
+        remoteJid: message.key.remoteJid || message.jid,
+        id: message.key.id,
+        // On vérifie si c'est le bot lui-même qui a envoyé la commande
+        fromMe: message.key.fromMe !== undefined ? message.key.fromMe : (message.fromMe || false),
+        participant: message.key.participant || undefined
+      };
+
+      const targetJid = cleanKey.remoteJid;
+
+      // On lance la suppression silencieusement
+      if (message.client && typeof message.client.sendMessage === 'function') {
+        message.client.sendMessage(targetJid, { delete: cleanKey }).catch((err) => {
+          // Si on est dans un groupe et qu'on a pas les droits Admin, ça va échouer silencieusement.
+          // C'est normal et voulu.
+        });
+      }
+
+    } catch (error) {
+      console.log(`[Auto-Delete Plugin] Erreur silencieuse :`, error.message);
+    }
+  }
+);

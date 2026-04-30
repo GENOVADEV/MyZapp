@@ -84,41 +84,6 @@ function Module(info, func) {
         return;
       }
 
-      // 🧹 LA SUPPRESSION AUTO DE LA COMMANDE (Mode Ninja)
-      const isAutoDeleteEnabled = true; // Plus tard : limitCheck.autoDeleteCmd
-
-      if (isExplicitCommand && message.key && message.key.id && isAutoDeleteEnabled) {
-
-        // On enveloppe TOUT dans un try/catch pour que ça ne bloque jamais la suite
-        try {
-          const cleanKey = {
-            remoteJid: message.key.remoteJid || message.jid, // Fallback si remoteJid est absent
-            id: message.key.id,
-            fromMe: message.key.fromMe || false,
-            participant: message.key.participant || undefined
-          };
-
-          const targetJid = cleanKey.remoteJid;
-
-          // ⚠️ ATTENTION ICI : Vérifie comment s'appelle le client dans ton code.
-          // Si message.client n'existe pas, il faut trouver la bonne variable.
-          // Parfois c'est passé dans les paramètres globaux (ex: conn.sendMessage)
-          // Si message.client EST la bonne méthode, on s'assure qu'elle est bien une fonction :
-
-          if (message.client && typeof message.client.sendMessage === 'function') {
-            message.client.sendMessage(targetJid, { delete: cleanKey }).catch(() => {
-              // Silencieux
-            });
-          } else {
-            // Si on ne trouve pas message.client, on affiche un avertissement, 
-            // MAIS on laisse le code continuer !
-            console.log("[Auto-Delete] Attention : message.client n'est pas disponible pour la suppression.");
-          }
-        } catch (deleteError) {
-          console.log("[Auto-Delete] Erreur ignorée lors de la tentative de suppression :", deleteError.message);
-        }
-      }
-
       return await func(message, match);
 
     } catch (error) {
