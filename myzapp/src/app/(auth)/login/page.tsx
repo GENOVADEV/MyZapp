@@ -98,7 +98,7 @@ export default function LoginPage() {
 
     if (isLoading) {
       return (
-        <div className="min-h-screen bg-background-app flex items-center justify-center">
+        <div className="min-h-screen bg-gradient-to-br from-background-app via-panel to-background-app flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="w-12 h-12 text-primary animate-spin" />
             <p className="text-text-subtle">Chargement...</p>

@@ -85,29 +85,38 @@ function Module(info, func) {
       }
 
       // 🧹 LA SUPPRESSION AUTO DE LA COMMANDE (Mode Ninja)
-      // ASTUCE SaaS : On ne supprime que si l'utilisateur a activé l'option sur son Dashboard !
-      // (Pour l'instant on met "true" pour tester, mais tu pourras le lier à ta DB via limitCheck)
       const isAutoDeleteEnabled = true; // Plus tard : limitCheck.autoDeleteCmd
 
       if (isExplicitCommand && message.key && message.key.id && isAutoDeleteEnabled) {
 
-        const cleanKey = {
-          remoteJid: message.key.remoteJid,
-          id: message.key.id,
-          fromMe: message.key.fromMe !== undefined ? message.key.fromMe : false,
-          participant: message.key.participant || undefined
-        };
+        // On enveloppe TOUT dans un try/catch pour que ça ne bloque jamais la suite
+        try {
+          const cleanKey = {
+            remoteJid: message.key.remoteJid || message.jid, // Fallback si remoteJid est absent
+            id: message.key.id,
+            fromMe: message.key.fromMe || false,
+            participant: message.key.participant || undefined
+          };
 
-        // On utilise remoteJid qui est 100% fiable dans Baileys
-        const targetJid = message.key.remoteJid;
+          const targetJid = cleanKey.remoteJid;
 
-        // On ne met pas de "await" ici ! 
-        // Le bot lance la suppression en arrière-plan et passe directement à l'exécution de la commande (gain de vitesse ⚡)
-        message.client.sendMessage(targetJid, { delete: cleanKey }).catch((err) => {
-          // On cache l'erreur dans la console. 
-          // Pourquoi ? Parce que si un membre tape une commande dans un groupe où le bot N'EST PAS ADMIN, 
-          // WhatsApp refusera la suppression. C'est normal, on l'ignore silencieusement.
-        });
+          // ⚠️ ATTENTION ICI : Vérifie comment s'appelle le client dans ton code.
+          // Si message.client n'existe pas, il faut trouver la bonne variable.
+          // Parfois c'est passé dans les paramètres globaux (ex: conn.sendMessage)
+          // Si message.client EST la bonne méthode, on s'assure qu'elle est bien une fonction :
+
+          if (message.client && typeof message.client.sendMessage === 'function') {
+            message.client.sendMessage(targetJid, { delete: cleanKey }).catch(() => {
+              // Silencieux
+            });
+          } else {
+            // Si on ne trouve pas message.client, on affiche un avertissement, 
+            // MAIS on laisse le code continuer !
+            console.log("[Auto-Delete] Attention : message.client n'est pas disponible pour la suppression.");
+          }
+        } catch (deleteError) {
+          console.log("[Auto-Delete] Erreur ignorée lors de la tentative de suppression :", deleteError.message);
+        }
       }
 
       return await func(message, match);
