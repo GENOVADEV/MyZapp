@@ -600,9 +600,11 @@ Module(
       match[1] = match[1] ? match[1].toLowerCase() : "";
       var db = await antibot.get();
       const jids = [];
-      db.map((data) => {
-        jids.push(data.jid);
-      });
+      if (db && Array.isArray(db)) {
+        db.map((data) => {
+          jids.push(data.jid);
+        });
+      }
       if (match[1] === "on") {
         if (!(await isAdmin(message)))
           return await message.sendReply("_I'm not an admin!_");
@@ -643,9 +645,11 @@ Module(
       match[1] = match[1] ? match[1].toLowerCase() : "";
       var db = await antispam.get();
       const jids = [];
-      db.map((data) => {
-        jids.push(data.jid);
-      });
+      if (db && Array.isArray(db)) {
+        db.map((data) => {
+          jids.push(data.jid);
+        });
+      }
       if (match[1] === "on") {
         if (!(await isAdmin(message)))
           return await message.sendReply("_I'm not an admin!_");
@@ -686,9 +690,11 @@ Module(
       match[1] = match[1] ? match[1].toLowerCase() : "";
       var db = await pdm.get();
       const jids = [];
-      db.map((data) => {
-        jids.push(data.jid);
-      });
+      if (db && Array.isArray(db)) {
+        db.map((data) => {
+          jids.push(data.jid);
+        });
+      }
       if (match[1] === "on") {
         await pdm.set(message.jid);
       }
@@ -723,9 +729,11 @@ Module(
     match[1] = match[1] ? match[1].toLowerCase() : "";
     var db = await antidemote.get();
     const jids = [];
-    db.map((data) => {
-      jids.push(data.jid);
-    });
+    if (db && Array.isArray(db)) {
+      db.map((data) => {
+        jids.push(data.jid);
+      });
+    }
     if (match[1] === "on") {
       await antidemote.set(message.jid);
     }
@@ -759,9 +767,11 @@ Module(
     match[1] = match[1] ? match[1].toLowerCase() : "";
     var db = await antipromote.get();
     const jids = [];
-    db.map((data) => {
-      jids.push(data.jid);
-    });
+    if (db && Array.isArray(db)) {
+      db.map((data) => {
+        jids.push(data.jid);
+      });
+    }
     if (match[1] === "on") {
       await antipromote.set(message.jid);
     }
@@ -1072,9 +1082,11 @@ Module(
       match[1] = match[1] ? match[1].toLowerCase() : "";
       var db = await antiword.get();
       const jids = [];
-      db.map((data) => {
-        jids.push(data.jid);
-      });
+      if (db && Array.isArray(db)) {
+        db.map((data) => {
+          jids.push(data.jid);
+        });
+      }
       var antiwordWarn = config.ANTIWORD_WARN?.split(",") || [];
       if (match[1].includes("warn")) {
         if (match[1].endsWith("on")) {
@@ -1425,9 +1437,11 @@ Module(
 
     var antiworddb = await antiword.get();
     const antiwordjids = [];
-    antiworddb.map((data) => {
-      antiwordjids.push(data.jid);
-    });
+    if (antiworddb && Array.isArray(antiworddb)) {
+      antiworddb.map((data) => {
+        antiwordjids.push(data.jid);
+      });
+    }
     if (antiwordjids.includes(message.jid)) {
       var antiwordWarn = config.ANTIWORD_WARN?.split(",") || [];
       if (antiwordWarn.includes(message.jid)) return;
@@ -1452,7 +1466,7 @@ Module(
 
     const foundLinks = linkDetector.detectLinks(message.message);
 
-    if (foundLinks.length > 0) {
+    if (foundLinks && Array.isArray(foundLinks) && foundLinks.length > 0) {
       const antilinkConf = await antilinkConfig.get(message.jid);
 
       if (antilinkConf && antilinkConf.enabled) {
