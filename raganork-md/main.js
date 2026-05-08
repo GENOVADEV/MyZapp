@@ -1,5 +1,6 @@
 const config = require("./config");
 const { checkUserLimits } = require("./core/subscription");
+const { getAppConfigs } = require("./core/settings");
 
 const Commands = [];
 let commandPrefix;
@@ -70,6 +71,16 @@ function Module(info, func) {
       const sender = message.sender || (message.key && (message.key.participant || message.key.remoteJid)) || "";
       const senderNumber = sender.split('@')[0];
       const isSudo = message.fromMe || senderNumber === botPhone || (config.SUDO && String(config.SUDO).includes(senderNumber));
+      
+      // --- 💉 DÉBUT DE L'INJECTION DES RÉGLAGES SaaS ---
+      const currentJid = message.key.remoteJid || message.jid;
+      const configs = await getAppConfigs(botPhone, currentJid);
+
+      // On greffe les réglages directement sur l'objet message !
+      message.globalSettings = configs.global;
+      message.aiSettings = configs.ai;
+      message.groupSettings = configs.group;
+      // --- FIN DE L'INJECTION ---
 
       const isExplicitCommand = info.pattern !== undefined;
       const category = (info.use || "general").toLowerCase();

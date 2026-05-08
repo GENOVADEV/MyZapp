@@ -25,8 +25,9 @@ Module(
 );
 Module(
   {
-    pattern: "edit ?(.*)",
+    pattern: "modify ?(.*)",
     fromMe: true,
+    desc: "Edits the replied message with new text",
     use: "whatsapp",
   },
   async (m, t) => {
@@ -197,7 +198,7 @@ Module(
       const settings = await checkUserLimits(botPhone, "general", false, false, "auto_delete_check");
       
       // La fameuse variable qui vient de ton Dashboard !
-      const isAutoDeleteEnabled = settings.autoDeleteCmd || false; 
+      const isAutoDeleteEnabled = message.globalSettings.antiDeleteEnabled ||true; 
 
       // 5. Si l'option est désactivée, on s'arrête là.
       if (!isAutoDeleteEnabled) return;

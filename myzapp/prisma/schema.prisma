@@ -157,6 +157,11 @@ model AppWhatsAppSession {
   botPhone  String?
   user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // 🌟 NOUVEAU : Relations vers les réglages du Dashboard
+  globalSettings  BotGlobalSettings?
+  aiPrompts       AIPrompts?
+  groupSettings   GroupSettings[]
+
   whatsappSession  WhatsappSessions @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
   @@index([userId])
   @@index([botPhone])
@@ -588,6 +593,74 @@ model welcomes {
   enabled   Boolean? @default(true)
   createdAt DateTime @db.Timestamptz(6)
   updatedAt DateTime @db.Timestamptz(6)
+}
+
+// ⚙️ RÉGLAGES GÉNERAUX DU BOT (Remplace bot_variables)
+model BotGlobalSettings {
+  id                String             @id @default(cuid())
+  appSessionId      String             @unique
+  appSession        AppWhatsAppSession @relation(fields: [appSessionId], references: [id], onDelete: Cascade)
+  
+  botName           String             @default("Raganork")
+  prefix            String             @default(".")
+  language          String             @default("fr")
+  isPublic          Boolean            @default(true)
+  
+  // Options (Exemples)
+  antiDeleteEnabled Boolean            @default(false)
+  autoDownload      Boolean            @default(false) 
+  antiBotEnabled    Boolean            @default(false) // Remplacera la table antibots
+
+  updatedAt         DateTime           @updatedAt
+
+  @@map("bot_global_settings")
+}
+
+// 🤖 RÉGLAGES INTELLIGENCE ARTIFICIELLE (Chatbot & Gemini)
+model AIPrompts {
+  id                String             @id @default(cuid())
+  appSessionId      String             @unique
+  appSession        AppWhatsAppSession @relation(fields: [appSessionId], references: [id], onDelete: Cascade)
+  
+  chatbotEnabled    Boolean            @default(false)
+  allowInDMs        Boolean            @default(true)
+  allowInGroups     Boolean            @default(false) 
+  imageAnalysis     Boolean            @default(false) 
+  systemPrompt      String?            @db.Text        
+
+  updatedAt         DateTime           @updatedAt
+
+  @@map("ai_prompts")
+}
+
+// 👥 RÉGLAGES SPÉCIFIQUES PAR GROUPE (L'Ultime fusion)
+// Remplacera : welcomes, goodbyes, antilink_configs, antispams, pdms, etc.
+model GroupSettings {
+  id                String             @id @default(cuid())
+  appSessionId      String
+  appSession        AppWhatsAppSession @relation(fields: [appSessionId], references: [id], onDelete: Cascade)
+  
+  groupId           String             // Le JID du groupe (ex: 123456789@g.us)
+  groupName         String?            // Pratique pour l'affichage Dashboard
+  
+  welcomeMessage    String?            @db.Text
+  welcomeEnabled    Boolean            @default(false)
+  
+  goodbyeMessage    String?            @db.Text
+  goodbyeEnabled    Boolean            @default(false)
+
+  antiSpamEnabled   Boolean            @default(false)
+  antiLinkMode      String             @default("off") // "off", "warn", "delete", "kick"
+  antiWordsMode     String             @default("off") // "off", "warn", "delete", "kick"
+  antiWordsList     String             @default("[]")  // Tableau JSON des mots interdits
+  
+  autoMuteTime      String?            // Ex: "22:00-06:00"
+
+  updatedAt         DateTime           @updatedAt
+
+  // ⚠️ LA SÉCURITÉ SaaS : 1 bot = 1 réglage par groupe max
+  @@unique([appSessionId, groupId])
+  @@map("group_settings")
 }
 
 enum UserStatus {

@@ -262,6 +262,7 @@ Module(
   {
     pattern: "gif",
     desc: "Video to gif with audio",
+    use: 'edit'
   },
   async (message, match) => {
     if (!message.reply_message || !message.reply_message.video)
@@ -355,6 +356,7 @@ Module(
   {
     pattern: "rotate ?(.*)",
     desc: "Rotates video (left/right)",
+    use : 'edit'
   },
   async (message, match) => {
     if (!match[1] || !message.reply_message || !message.reply_message.video)

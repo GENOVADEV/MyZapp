@@ -793,7 +793,7 @@ Module(
     fromMe: true,
     use: "owner",
     desc: "Join a WhatsApp group using invite link",
-    usage: ".join https://chat.whatsapp.com/abcdef123456",
+    usage: ".join https://chat.whatsapp.com/Cptw2vCsud3AEEHMXikY6N",
   },
   async (message, match) => {
     let rgx =

@@ -164,7 +164,8 @@ const sequelize = (() => {
   }
 
   return new Sequelize(DATABASE_URL, {
-    dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
+    dialectOptions: {},
+    // { ssl: { require: true, rejectUnauthorized: false } },
     logging: DEBUG,
     pool: {
       max: 20,
@@ -269,7 +270,7 @@ const baseConfig = {
   SUDO: process.env.SUDO || "",
   LANGUAGE: process.env.LANGUAGE || "english",
   AUTO_UPDATE: convertToBool(process.env.AUTO_UPDATE) || true,
-  SUPPORT_GROUP: process.env.SUPPORT_GROUP || "https://t.me/raganork_in",
+  SUPPORT_GROUP: process.env.SUPPORT_GROUPW || process.env.SUPPORT_GROUPT || "https://t.me/MyZapp_Bot",
   ACR_A: "ff489a0160188cf5f0750eaf486eee74",
   ACR_S: "ytu3AdkCu7fkRVuENhXxs9jsOW4YJtDXimAWMpJp",
   settingsMenu,

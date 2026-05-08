@@ -260,7 +260,7 @@ Module(
   async (message, match) => {
     if (
       !match[1] ||
-      !["english", "manglish", "turkish"].includes(match[1].toLowerCase())
+      !["french","english", "manglish", "turkish"].includes(match[1].toLowerCase())
     )
       return await message.sendReply(
         "_Invalid language! Available languages are English, Manglish and Turkish_"
