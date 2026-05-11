@@ -189,9 +189,9 @@ class Message extends Base {
   _buildGroupStatusPayload(content, messageOptions = {}) {
     const source =
       content &&
-      typeof content === "object" &&
-      !Buffer.isBuffer(content) &&
-      content.groupStatusMessage
+        typeof content === "object" &&
+        !Buffer.isBuffer(content) &&
+        content.groupStatusMessage
         ? content.groupStatusMessage
         : content;
 
@@ -248,13 +248,13 @@ class Message extends Base {
       payload.message && typeof payload.message === "object"
         ? payload.message
         : await generateWAMessageContent(payload, {
-            upload: this.client.waUploadToServer,
-            mediaCache: this.client.mediaCache,
-            options: this.client.options,
-            logger: this.client.logger,
-            userJid,
-            jid: this.jid,
-          });
+          upload: this.client.waUploadToServer,
+          mediaCache: this.client.mediaCache,
+          options: this.client.options,
+          logger: this.client.logger,
+          userJid,
+          jid: this.jid,
+        });
 
     const groupStatusContent = {
       groupStatusMessageV2: {
@@ -458,15 +458,15 @@ class Message extends Base {
   async sendInteractiveMessage(jid, list, options) {
     return null;
   }
-  
+
   async forwardMessage(jid, message, options = {}) {
     let vtype;
     let mtype = getContentType(message.message);
     if (options.readViewOnce) {
       message.message =
         message.message &&
-        message.message.ephemeralMessage &&
-        message.message.ephemeralMessage.message
+          message.message.ephemeralMessage &&
+          message.message.ephemeralMessage.message
           ? message.message.ephemeralMessage.message
           : message.message || undefined;
       vtype = Object.keys(message.message.viewOnceMessage.message)[0];
@@ -480,7 +480,12 @@ class Message extends Base {
     }
 
     if (options.mentions) {
-      (message.message[mtype].contextInfo.mentionedJid || []) = options.mentions;
+      // 1. On s'assure que contextInfo existe avant de lui ajouter des choses
+      if (!message.message[mtype].contextInfo) {
+        message.message[mtype].contextInfo = {};
+      }
+      // 2. On assigne les mentions proprement
+      message.message[mtype].contextInfo.mentionedJid = options.mentions;
     }
     let content = generateForwardMessageContent(message, false);
     let content_type = getContentType(content);
@@ -516,17 +521,17 @@ class Message extends Base {
       content,
       options
         ? {
-            ...content[content_type],
-            ...options,
-            ...(options.contextInfo
-              ? {
-                  contextInfo: {
-                    ...content[content_type].contextInfo,
-                    ...options.contextInfo,
-                  },
-                }
-              : {}),
-          }
+          ...content[content_type],
+          ...options,
+          ...(options.contextInfo
+            ? {
+              contextInfo: {
+                ...content[content_type].contextInfo,
+                ...options.contextInfo,
+              },
+            }
+            : {}),
+        }
         : {}
     );
     await this.client.relayMessage(jid, waMessage.message, {
