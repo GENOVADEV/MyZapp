@@ -1,73 +1,88 @@
 // core/settings.js
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// ⚠️ VÉRIFIE CE CHEMIN : Assure-toi que le chemin vers ton fichier database est correct
+const { sequelize } = require('../database'); // ou "./database" selon où se trouve settings.js
+const { QueryTypes } = require('sequelize');
 
 // --- SYSTÈME DE CACHE EN MÉMOIRE (RAM) ---
 const settingsCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // Durée de vie du cache : 5 minutes (en millisecondes)
+const CACHE_TTL = 5 * 60 * 1000; // Durée de vie du cache : 5 minutes
 
 /**
- * Récupère les configurations d'un bot et d'un groupe de manière optimisée
+ * Récupère les configurations d'un bot et d'un groupe via Sequelize
  * @param {string} botPhone - Le numéro du bot
  * @param {string} jid - L'ID du chat/groupe (optionnel)
  * @returns {Promise<{global: object, ai: object, group: object}>}
  */
 async function getAppConfigs(botPhone, jid = null) {
-  // Structure par défaut si rien n'est trouvé
   const defaultConfigs = { global: {}, ai: {}, group: {} };
   
   if (!botPhone) return defaultConfigs;
 
   const isGroup = jid && jid.endsWith('@g.us');
-  // On fabrique une clé de cache unique. Ex: "237691..._12345@g.us" ou "237691..._dm"
   const cacheKey = `${botPhone}_${isGroup ? jid : 'dm'}`;
 
   // 🟢 1. VÉRIFICATION DU CACHE
   if (settingsCache.has(cacheKey)) {
     const cachedData = settingsCache.get(cacheKey);
-    // Si le cache a moins de 5 minutes, on l'utilise direct (0 requête DB !)
     if (Date.now() - cachedData.timestamp < CACHE_TTL) {
       return cachedData.configs;
     }
-    // S'il est trop vieux, on le supprime pour le rafraîchir
     settingsCache.delete(cacheKey);
   }
 
-  // 🟡 2. REQUÊTE VERS LA BASE DE DONNÉES (Si pas de cache valide)
+  // 🟡 2. REQUÊTES VERS LA BASE DE DONNÉES (Via Sequelize SQL Brut)
   try {
-    // A. On récupère la session du bot et ses réglages globaux
-    const appSession = await prisma.appWhatsAppSession.findFirst({
-      where: { botPhone: botPhone },
-      include: {
-        globalSettings: true,
-        aiPrompts: true,
+    // A. Trouver l'ID de la session du bot
+    // (Les guillemets "" sont importants pour PostgreSQL avec Prisma)
+    const sessions = await sequelize.query(
+      `SELECT id FROM "AppWhatsAppSessions" WHERE "botPhone" = :botPhone LIMIT 1`,
+      {
+        replacements: { botPhone: botPhone },
+        type: QueryTypes.SELECT
       }
-    });
+    );
 
-    if (!appSession) return defaultConfigs;
+    if (!sessions || sessions.length === 0) return defaultConfigs;
+    const appSessionId = sessions[0].id;
 
-    let groupSettings = {};
+    // B. Récupérer les réglages globaux
+    const globalSettings = await sequelize.query(
+      `SELECT * FROM "bot_global_settings" WHERE "appSessionId" = :appSessionId LIMIT 1`,
+      {
+        replacements: { appSessionId: appSessionId },
+        type: QueryTypes.SELECT
+      }
+    );
 
-    // B. Si le message vient d'un groupe, on récupère les réglages de ce groupe
+    // C. Récupérer les réglages de l'IA
+    const aiPrompts = await sequelize.query(
+      `SELECT * FROM "ai_prompts" WHERE "appSessionId" = :appSessionId LIMIT 1`,
+      {
+        replacements: { appSessionId: appSessionId },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    // D. Récupérer les réglages du groupe (Si le message vient d'un groupe)
+    let groupSettings = [];
     if (isGroup) {
-      const dbGroupSettings = await prisma.groupSettings.findUnique({
-        where: {
-          appSessionId_groupId: {
-            appSessionId: appSession.id,
-            groupId: jid
-          }
+      groupSettings = await sequelize.query(
+        `SELECT * FROM "group_settings" WHERE "appSessionId" = :appSessionId AND "groupId" = :groupId LIMIT 1`,
+        {
+          replacements: { appSessionId: appSessionId, groupId: jid },
+          type: QueryTypes.SELECT
         }
-      });
-      if (dbGroupSettings) groupSettings = dbGroupSettings;
+      );
     }
 
+    // On assemble les données (S'il n'y a pas de résultat, on met un objet vide {})
     const finalConfigs = {
-      global: appSession.globalSettings || {},
-      ai: appSession.aiPrompts || {},
-      group: groupSettings
+      global: globalSettings.length > 0 ? globalSettings[0] : {},
+      ai: aiPrompts.length > 0 ? aiPrompts[0] : {},
+      group: groupSettings.length > 0 ? groupSettings[0] : {}
     };
 
-    // 🟢 3. ON SAUVEGARDE EN MÉMOIRE POUR LES 5 PROCHAINES MINUTES
+    // 🟢 3. ON SAUVEGARDE EN MÉMOIRE
     settingsCache.set(cacheKey, {
       timestamp: Date.now(),
       configs: finalConfigs
@@ -76,15 +91,13 @@ async function getAppConfigs(botPhone, jid = null) {
     return finalConfigs;
 
   } catch (error) {
-    console.error("❌ [Settings Cache] Erreur DB :", error.message);
-    // En cas d'erreur de la DB, on renvoie du vide pour ne pas crasher le bot
+    console.error("❌ [Settings Cache Sequelize] Erreur DB :", error.message);
     return defaultConfigs;
   }
 }
 
 /**
  * Fonction pour forcer la suppression du cache 
- * (Très utile pour appliquer instantanément une modif faite sur le Dashboard)
  */
 function clearConfigsCache(botPhone) {
   for (const key of settingsCache.keys()) {
