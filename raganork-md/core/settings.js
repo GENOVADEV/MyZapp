@@ -1,6 +1,6 @@
 // core/settings.js
 // ⚠️ VÉRIFIE CE CHEMIN : Assure-toi que le chemin vers ton fichier database est correct
-const { sequelize } = require('../database'); // ou "./database" selon où se trouve settings.js
+const { sequelize } = require('./database'); // ou "./database" selon où se trouve settings.js
 const { QueryTypes } = require('sequelize');
 
 // --- SYSTÈME DE CACHE EN MÉMOIRE (RAM) ---
