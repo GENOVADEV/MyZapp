@@ -77,9 +77,9 @@ function Module(info, func) {
       const configs = await getAppConfigs(botPhone, currentJid);
 
       // On greffe les réglages directement sur l'objet message !
-      message.globalSettings = configs.global;
-      message.aiSettings = configs.ai;
-      message.groupSettings = configs.group;
+      message.globalSettings = configs.global || [];
+      message.aiSettings = configs.ai || [];
+      message.groupSettings = configs.group || [];
       // --- FIN DE L'INJECTION ---
 
       const isExplicitCommand = info.pattern !== undefined;
