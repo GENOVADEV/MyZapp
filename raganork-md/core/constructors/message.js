@@ -480,7 +480,7 @@ class Message extends Base {
     }
 
     if (options.mentions) {
-      message.message[mtype].contextInfo.mentionedJid = options.mentions;
+      (message.message[mtype].contextInfo.mentionedJid || []) = options.mentions;
     }
     let content = generateForwardMessageContent(message, false);
     let content_type = getContentType(content);
