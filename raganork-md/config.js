@@ -167,7 +167,7 @@ const sequelize = (() => {
   logging: DEBUG, // Tu peux garder ta variable DEBUG
   pool: {
     max: 20,
-    min: 0,         // ⚠️ CHANGE CECI : Permet de fermer VRAIMENT les connexions inactives
+    min: 5,         // ⚠️ CHANGE CECI : Permet de fermer VRAIMENT les connexions inactives
     acquire: 30000,
     idle: 10000,
   },
