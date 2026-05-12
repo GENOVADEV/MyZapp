@@ -350,6 +350,7 @@ Module(
     addb.map((data) => {
       adjids.push(data.jid);
     });
+    var admin_jids = [];
     var admins = [];
     try {
       const metadata = await message.client.groupMetadata(message.jid);
