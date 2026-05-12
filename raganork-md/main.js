@@ -98,7 +98,7 @@ function Module(info, func) {
       return await func(message, match);
 
     } catch (error) {
-      console.error(`❌ Erreur d'exécution du plugin :`, error.message);
+      console.error(`❌ Erreur d'exécution du plugin :`, error.stack);
     }
   };
   // --- FIN DE LA SÉCURISATION ---
