@@ -16,7 +16,14 @@ const {
 } = require("./utils/welcome-parser");
 
 async function isSuperAdmin(message, user = message.client.user.id) {
-  var metadata = await message.client.groupMetadata(message.jid);
+  var metadata;
+  try {
+    metadata = await message.client.groupMetadata(message.jid);
+  } catch (error) {
+    console.log(`⚠️ [Sécurité] Impossible de vérifier le SuperAdmin pour ${message.jid}`);
+    return false; // Par sécurité, on renvoie faux si on ne peut pas vérifier
+  }
+  if (!metadata) return false;
   let superadmin = metadata.participants.filter((v) => v.admin == "superadmin");
   superadmin = superadmin.length ? superadmin[0].id == user : false;
   return superadmin;
@@ -241,8 +248,7 @@ Module(
           mute[e].unmute = temp.time;
         }
         msg +=
-          `*${Math.floor(parseInt(e) + 1)}. Group:* ${
-            (await message.client.groupMetadata(mute[e].chat)).subject
+          `*${Math.floor(parseInt(e) + 1)}. Group:* ${(await message.client.groupMetadata(mute[e].chat)).subject
           }
 *➥ Mute:* ${tConvert(mute[e].time)}
 *➥ Unmute:* ${tConvert(mute[e].unmute || "Not set")}` + "\n\n";
@@ -344,10 +350,17 @@ Module(
     addb.map((data) => {
       adjids.push(data.jid);
     });
-    var admin_jids = [];
-    var admins = (await message.client.groupMetadata(message.jid)).participants
-      .filter((v) => v.admin !== null)
-      .map((x) => x.id);
+    var admins = [];
+    try {
+      const metadata = await message.client.groupMetadata(message.jid);
+      if (metadata && metadata.participants) {
+        admins = metadata.participants
+          .filter((v) => v.admin !== null)
+          .map((x) => x.id);
+      }
+    } catch (error) {
+      console.log(`⚠️ [Sécurité] Impossible de lire les métadonnées du groupe ${message.jid}`);
+    }
     admins.map(async (user) => {
       admin_jids.push(user.replace("c.us", "s.whatsapp.net"));
     });
@@ -358,11 +371,9 @@ Module(
       if (message.from.split("@")[0] == message.myjid) return;
       if (message.action == "demote") admin_jids.push(message.participant[0].id);
       await message.client.sendMessage(message.jid, {
-        text: `_*[${
-          message.action == "promote" ? "Promote detected" : "Demote detected"
-        }]*_\n\n@${message.from.split("@")[0]} ${message.action}d @${
-          message.participant[0].id.split("@")[0]
-        }`,
+        text: `_*[${message.action == "promote" ? "Promote detected" : "Demote detected"
+          }]*_\n\n@${message.from.split("@")[0]} ${message.action}d @${message.participant[0].id.split("@")[0]
+          }`,
         mentions: admin_jids,
       });
     }
@@ -396,9 +407,8 @@ Module(
         return;
       if (message.participant[0].id.split("@")[0] == message.myjid) {
         return await message.client.sendMessage(message.jid, {
-          text: `_*Bot number was demoted, I'm unable to execute anti-demote* [Demoted by @${
-            message.from.split("@")[0]
-          }]_`,
+          text: `_*Bot number was demoted, I'm unable to execute anti-demote* [Demoted by @${message.from.split("@")[0]
+            }]_`,
           mentions: admin_jids,
         });
       }
