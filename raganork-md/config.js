@@ -164,16 +164,18 @@ const sequelize = (() => {
   }
 
   return new Sequelize(DATABASE_URL, {
-    dialectOptions: {},
-    // { ssl: { require: true, rejectUnauthorized: false } },
-    logging: DEBUG,
-    pool: {
-      max: 20,
-      min: 5,
-      acquire: 30000,
-      idle: 10000,
-    },
-  });
+  logging: DEBUG, // Tu peux garder ta variable DEBUG
+  pool: {
+    max: 20,
+    min: 0,         // ⚠️ CHANGE CECI : Permet de fermer VRAIMENT les connexions inactives
+    acquire: 30000,
+    idle: 10000,
+  },
+  dialectOptions: {
+    ssl: { require: true, rejectUnauthorized: false }, // ⚠️ Enlève les // devant ssl
+    keepAlive: true // 🛡️ LE BOUCLIER ANTI-CRASH pour Render
+  },
+});
 })();
 
 const SESSION_STRING = process.env.SESSION || process.env.SESSION_ID;
