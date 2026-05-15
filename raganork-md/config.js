@@ -167,6 +167,8 @@ const sequelize = (() => {
   return new Sequelize(DATABASE_URL, {
     dialectOptions: {
       keepAlive: true,
+      statement_timeout: 10000, 
+    idle_in_transaction_session_timeout: 10000,
       ssl: { require: true, rejectUnauthorized: false } 
       },
     logging: DEBUG,
