@@ -155,7 +155,8 @@ const sequelize = (() => {
         max: 10, // CRITIQUE pour SQLite : 1 seule connexion en écriture
         min: 0,
         acquire: 60000,
-        idle: 10000,
+        idle: 2000,
+        evict: 2000
       },
     });
 
@@ -173,7 +174,8 @@ const sequelize = (() => {
       max: 10,
       min: 0,
       acquire: 60000,
-      idle: 10000,
+      idle: 2000,
+      evict: 2000
     },
   });
 })();
