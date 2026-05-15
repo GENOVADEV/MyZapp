@@ -164,7 +164,10 @@ const sequelize = (() => {
   }
 
   return new Sequelize(DATABASE_URL, {
-    dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
+    dialectOptions: {
+      keepAlive: true,
+      // ssl: { require: true, rejectUnauthorized: false } 
+      },
     logging: DEBUG,
     pool: {
       max: 10,
