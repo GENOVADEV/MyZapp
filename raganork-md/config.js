@@ -152,9 +152,9 @@ const sequelize = (() => {
         connectTimeout: 20000 // On donne 20s de battement
       },
       pool: {
-        max: 1, // CRITIQUE pour SQLite : 1 seule connexion en écriture
+        max: 10, // CRITIQUE pour SQLite : 1 seule connexion en écriture
         min: 0,
-        acquire: 30000,
+        acquire: 60000,
         idle: 10000,
       },
     });
@@ -167,9 +167,9 @@ const sequelize = (() => {
     dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
     logging: DEBUG,
     pool: {
-      max: 20,
-      min: 5,
-      acquire: 30000,
+      max: 10,
+      min: 0,
+      acquire: 60000,
       idle: 10000,
     },
   });
