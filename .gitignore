@@ -1,3 +1,12 @@
 node_modules/
 *.db
 *.env
+
+# Temporary and downloaded media files
+temp_*
+temp/
+*.part
+*.webm
+*.mp4
+*.mp3
+*.m4a

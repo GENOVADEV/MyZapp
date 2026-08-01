@@ -4,6 +4,30 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Nettoie les fichiers temporaires intermédiaires (ex: .f140.m4a, .webm) et les fichiers obsolètes
+ */
+function cleanupTempFiles(currentId = '', preservePath = null) {
+  try {
+    const files = fs.readdirSync('.');
+    const now = Date.now();
+    for (const file of files) {
+      if (file.startsWith('temp_')) {
+        const fullPath = path.resolve(file);
+        if (preservePath && path.resolve(preservePath) === fullPath) {
+          continue; // Ne pas supprimer le fichier final valide
+        }
+        // Supprime si c'est un fichier intermédiaire lié à l'ID en cours ou s'il a plus de 10 minutes (abandonné)
+        if ((currentId && file.includes(String(currentId))) || (fs.statSync(file).mtimeMs < now - 10 * 60 * 1000)) {
+          try { fs.unlinkSync(file); } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Temp cleanup error:", e.message);
+  }
+}
+
+/**
  * Get video info from a YouTube URL
  * @param {string} url 
  * @returns {Promise<Object>}
@@ -66,17 +90,24 @@ async function searchYoutube(query, limit = 10) {
 async function downloadAudio(url) {
   const info = await getVideoInfo(url);
   const title = info.title;
-  const filePath = `./temp_${Date.now()}.mp3`;
+  const id = Date.now();
+  const filePath = `./temp_${id}.mp3`;
   const ffmpegPath = require('ffmpeg-static');
   
-  await youtubedl(url, {
-    extractAudio: true,
-    audioFormat: 'mp3',
-    output: filePath,
-    ffmpegLocation: ffmpegPath,
-    noWarnings: true
-  });
+  try {
+    await youtubedl(url, {
+      extractAudio: true,
+      audioFormat: 'mp3',
+      output: filePath,
+      ffmpegLocation: ffmpegPath,
+      noWarnings: true
+    });
+  } catch (err) {
+    cleanupTempFiles(id); // En cas d'échec, supprimer tous les morceaux téléchargés
+    throw err;
+  }
 
+  cleanupTempFiles(id, filePath); // Supprimer les fichiers intermédiaires mais conserver l'mp3 final
   return { path: filePath, title, info };
 }
 
@@ -89,16 +120,23 @@ async function downloadAudio(url) {
 async function downloadVideo(url, quality) {
   const info = await getVideoInfo(url);
   const title = info.title;
-  const filePath = `./temp_${Date.now()}.mp4`;
+  const id = Date.now();
+  const filePath = `./temp_${id}.mp4`;
   const ffmpegPath = require('ffmpeg-static');
 
-  await youtubedl(url, {
-    format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-    output: filePath,
-    ffmpegLocation: ffmpegPath,
-    noWarnings: true
-  });
+  try {
+    await youtubedl(url, {
+      format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+      output: filePath,
+      ffmpegLocation: ffmpegPath,
+      noWarnings: true
+    });
+  } catch (err) {
+    cleanupTempFiles(id); // En cas d'échec, supprimer les flux vidéo/audio non fusionnés
+    throw err;
+  }
 
+  cleanupTempFiles(id, filePath); // Supprimer les fragments intermédiaires mais conserver l'mp4 final
   return { path: filePath, title, info };
 }
 
