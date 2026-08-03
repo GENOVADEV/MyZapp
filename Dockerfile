@@ -15,4 +15,4 @@ ENV TZ=Asia/Kolkata
 RUN npm install -g --force yarn pm2
 COPY . .
 RUN yarn install --no-immutable || yarn install
-CMD ["npm", "start"]
+CMD ["node", "index.js"]
