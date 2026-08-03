@@ -77,8 +77,13 @@ const { uploadToImgbb, uploadToCatbox } = require("./upload");
 const linkDetector = require("./link-detector");
 
 const fancy = require("./fancy");
+const antiban = require("./antiban");
 
 module.exports = {
+  // Anti-Ban & Humanization
+  ...antiban,
+  antiban,
+
   // Database Operations
   getWarn,
   setWarn,
@@ -138,7 +143,7 @@ module.exports = {
   // Language
   malayalamToManglish,
   manglishToMalayalam,
-
+  
   // GIS
   gis,
 
