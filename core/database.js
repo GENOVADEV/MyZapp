@@ -30,6 +30,18 @@ const WhatsappSession = sequelize.define('WhatsappSession', {
     }
 });
 
+// 🛡️ [Anti-Disconnect Shield] Empêcher la suppression abusive des sessions en BDD lors des erreurs 428 / déconnexions temporaires
+const originalDestroy = WhatsappSession.destroy.bind(WhatsappSession);
+WhatsappSession.destroy = async function (options) {
+    logger.warn({ options }, '🛡️ [Session Shield] Tentative de suppression de session interceptée et bloquée ! Sauvegarde de la session conservée en base PostgreSQL.');
+    return 0; // Neutralise la destruction en BDD
+};
+
+WhatsappSession.beforeDestroy(async (instance, options) => {
+    logger.warn({ session: instance?.sessionId }, '🛡️ [Session Shield] beforeDestroy bloqué pour protéger la session.');
+    throw new Error('Session deletion blocked by Anti-Disconnect Shield.');
+});
+
 const BotVariable = sequelize.define('BotVariable', {
     key: {
         type: DataTypes.STRING,

@@ -1,28 +1,32 @@
 const { Module } = require("../main");
 const { 
   humanSleep, 
+  safeCall,
   simulateHumanTyping, 
-  randomizeMessage 
+  randomizeMessage,
+  safeSendMessage 
 } = require("./utils/antiban");
 
 // Map pour stocker les sessions interactives de diffusion. Clé = JID de l'expéditeur
 const diffuseSessions = new Map();
 
 /**
- * Diffusion EN PRIVÉ (DMs) vers les membres des groupes avec BOUCLIER ANTI-BAN MAX
+ * Diffusion EN PRIVÉ (DMs) vers les membres des groupes avec BOUCLIER ANTI-BAN MAX & ANTI-RAFALE 428
  */
 async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
   let statusMsg;
   try {
-    statusMsg = await message.sendReply(`_⏳ Extraction des participants depuis ${selectedGroupJids.length} groupe(s)..._`);
+    statusMsg = await message.sendReply(`_⏳ Extraction sécurisée des participants depuis ${selectedGroupJids.length} groupe(s) (anti-rafale actif)..._`);
     
     let targetMembers = new Set();
     let totalAdminsSkipped = 0;
 
-    for (let groupJid of selectedGroupJids) {
+    for (let i = 0; i < selectedGroupJids.length; i++) {
+      const groupJid = selectedGroupJids[i];
       try {
-        const groupMetadata = await message.client.groupMetadata(groupJid);
-        const participants = groupMetadata.participants || [];
+        // Interrogation sécurisée avec gestion de reconnexion auto si code 428
+        const groupMetadata = await safeCall(() => message.client.groupMetadata(groupJid));
+        const participants = groupMetadata?.participants || [];
         
         for (let participant of participants) {
           // Ignorer les administrateurs et superadministrateurs
@@ -36,7 +40,12 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
           }
         }
       } catch (err) {
-        console.error(`Erreur récupération métadonnées groupe ${groupJid}`, err);
+        console.error(`Erreur récupération métadonnées groupe ${groupJid}:`, err?.message || err);
+      }
+
+      // 🛑 PAUSE ANTI-RAFALE ENTRE CHAQUE GROUPE (Empêche l'erreur WhatsApp 428 Precondition Required)
+      if (i < selectedGroupJids.length - 1) {
+        await humanSleep(2500, 4500);
       }
     }
 
@@ -49,10 +58,10 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
 
     await message.edit(
       `_🚀 Début de la diffusion en privé à ${total} membre(s)..._\n` +
-      `_🛡️ Bouclier Anti-Ban MAX :_\n` +
+      `_🛡️ Bouclier Anti-Ban & Anti-428 activé :_\n` +
+      `• *Anti-Rafale* : Rythme modéré & reconnexion auto\n` +
       `• *Spintax & Hash unique* par message\n` +
-      `• *Simulation de frappe humaine* en temps réel\n` +
-      `• *Pauses de respiration automatiques* tous les 10 envois`,
+      `• *Simulation de frappe* & *Pauses automatiques*`,
       message.jid, 
       statusMsg.key
     );
@@ -63,11 +72,11 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
     for (let i = 0; i < total; i++) {
       const targetJid = targetsArray[i];
 
-      // 1. Pause de refroidissement (Cooling Period) tous les 10 messages pour bloquer la détection heuristique WhatsApp
+      // 1. Pause de refroidissement tous les 10 messages pour bloquer la détection heuristique WhatsApp
       if (i > 0 && i % 10 === 0) {
         const pauseSec = Math.floor(Math.random() * (75 - 45 + 1)) + 45; // Pause aléatoire entre 45 et 75 sec
         await message.edit(
-          `_☕ [Anti-Ban] Pause de sécurité automatique de ${pauseSec} secondes après 10 messages pour éviter la détection d'algorithme WhatsApp (${i}/${total})..._`,
+          `_☕ [Anti-Ban] Pause de sécurité automatique de ${pauseSec}s après 10 messages pour réguler la connexion WhatsApp (${i}/${total})..._`,
           message.jid,
           statusMsg.key
         );
@@ -80,16 +89,12 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
       }
 
       try {
-        // 2. Obfuscation : génère un hash unique et évalue la Spintax {A|B} pour ce contact précis
-        const finalMsg = randomizeMessage(msgToDiffuse);
-
-        // 3. Simulation de comportement humain : le contact voit "en train d'écrire..." avant la réception
-        await simulateHumanTyping(message.client, targetJid, finalMsg);
-
-        // 4. Envoi réel
-        await message.client.sendMessage(targetJid, { text: finalMsg });
+        // 2 & 3. Simulation, Obfuscation et Envoi résilient via safeSendMessage
+        // En cas de déconnexion temporaire 428, safeSendMessage attend et réessaye au lieu de crasher !
+        await safeSendMessage(message.client, targetJid, msgToDiffuse);
         sentCount++;
       } catch (error) {
+        console.error(`Échec envoi vers ${targetJid}:`, error?.message || error);
         failedCount++;
       }
 
@@ -103,7 +108,7 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
         );
       }
 
-      // 5. Délai inter-message réaliste entre 12 et 24 secondes (contre 3s auparavant !)
+      // 4. Délai inter-message réaliste entre 12 et 24 secondes
       if (i < total - 1 && (i + 1) % 10 !== 0) {
         await humanSleep(12000, 24000);
       }
@@ -147,9 +152,7 @@ async function diffuseGroupMessage(message, msgToDiffuse, selectedGroupJids) {
   for (let i = 0; i < selectedGroupJids.length; i++) {
     const groupJid = selectedGroupJids[i];
     try {
-      const finalMsg = randomizeMessage(msgToDiffuse);
-      await simulateHumanTyping(message.client, groupJid, finalMsg);
-      await message.client.sendMessage(groupJid, { text: finalMsg });
+      await safeSendMessage(message.client, groupJid, msgToDiffuse);
       sentCount++;
     } catch (e) {
       failedCount++;
@@ -188,8 +191,8 @@ Module(
         return await message.sendReply("_❌ Syntaxe : .diffuse {Salut|Bonjour} message | all_");
       }
 
-      const groupsObj = await message.client.groupFetchAllParticipating();
-      const allGroups = Object.values(groupsObj);
+      const groupsObj = await safeCall(() => message.client.groupFetchAllParticipating());
+      const allGroups = Object.values(groupsObj || {});
       let selectedGroupJids = [];
       
       if (groupTarget === "all") {
@@ -210,7 +213,7 @@ Module(
 
     diffuseSessions.set(message.sender, { step: 1, type: "private", message: null, groups: null });
     await message.sendReply(
-      `_🛡️ *Mode Diffusion en Privé (Anti-Ban MAX)*_\n\n` +
+      `_🛡️ *Mode Diffusion en Privé (Anti-Ban & Anti-428)*_\n\n` +
       `Veuillez répondre à ce message avec le texte à diffuser.\n\n` +
       `💡 *Conseil Anti-Ban :* Utilisez du Spintax pour que chaque membre reçoive une phrase unique, par exemple :\n` +
       `\`{Bonjour|Salut|Coucou}, je vous écris pour {vous informer|vous présenter}...\``
@@ -234,8 +237,8 @@ Module(
       const msgToDiffuse = parts[0].trim();
       const groupTarget = parts[1].trim().toLowerCase();
 
-      const groupsObj = await message.client.groupFetchAllParticipating();
-      const allGroups = Object.values(groupsObj);
+      const groupsObj = await safeCall(() => message.client.groupFetchAllParticipating());
+      const allGroups = Object.values(groupsObj || {});
       let selectedGroupJids = [];
       
       if (groupTarget === "all") {
@@ -284,8 +287,8 @@ Module(
         return await message.sendReply("_❌ Veuillez fournir un message texte valide._");
       }
 
-      const groupsObj = await message.client.groupFetchAllParticipating();
-      const allGroups = Object.values(groupsObj);
+      const groupsObj = await safeCall(() => message.client.groupFetchAllParticipating());
+      const allGroups = Object.values(groupsObj || {});
       
       if (allGroups.length === 0) {
         diffuseSessions.delete(message.sender);
