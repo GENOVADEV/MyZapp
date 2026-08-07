@@ -4,7 +4,6 @@ services:
     env: docker
     plan: free
     rootDir: ./myzapp-server
-    dockerfilePath: ./myzapp-server/Dockerfile
     healthCheckPath: /health
     envVars:
       - key: USE_SERVER
