@@ -13,6 +13,6 @@ RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.co
 RUN mkdir -p temp
 ENV TZ=Asia/Kolkata
 RUN npm install -g --force pm2
-COPY . .
+COPY ./myzapp-server ./
 RUN npm install --legacy-peer-deps
 CMD ["node", "index.js"]
