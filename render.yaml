@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: myzapp-bot
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: USE_SERVER
+        value: true
+      - key: SESSION
+        sync: false   # Indique au CLI de vous demander votre chaîne SESSION de manière sécurisée lors du premier déploiement

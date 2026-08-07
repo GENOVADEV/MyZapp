@@ -9,4 +9,5 @@ temp/
 *.webm
 *.mp4
 *.mp3
-*.m4a
+*.m4a
+/generated/prisma

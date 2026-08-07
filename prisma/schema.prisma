@@ -1,0 +1,167 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Warn {
+  id        Int      @id @default(autoincrement())
+  chat      String
+  user      String
+  reason    String?
+  warnedBy  String
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("_warns")
+}
+
+model Fake {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("fakes")
+}
+
+model Antilink {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antilinks")
+}
+
+model AntilinkConfig {
+  jid           String   @id
+  mode          String   @default("delete")
+  allowedLinks  String?
+  blockedLinks  String?
+  isWhitelist   Boolean  @default(true)
+  enabled       Boolean  @default(true)
+  customMessage String?
+  updatedBy     String?
+  updatedAt     DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@map("antilink_configs")
+}
+
+model AntiSpam {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antispams")
+}
+
+model PDM {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pdms")
+}
+
+model AntiDemote {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antidemotes")
+}
+
+model AntiPromote {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antipromotes")
+}
+
+model AntiBot {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antibots")
+}
+
+model AntiWord {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("antiwords")
+}
+
+model Welcome {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  message   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("welcomes")
+}
+
+model Goodbye {
+  id        Int      @id @default(autoincrement())
+  jid       String
+  message   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("goodbyes")
+}
+
+model Filter {
+  id            Int      @id @default(autoincrement())
+  trigger       String
+  response      String
+  jid           String?
+  scope         String   @default("chat")
+  enabled       Boolean  @default(true)
+  caseSensitive Boolean  @default(false)
+  exactMatch    Boolean  @default(false)
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("filters")
+}
+
+model WhatsappSession {
+  sessionId   String   @id
+  sessionData String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("WhatsappSessions")
+}
+
+model BotVariable {
+  key       String   @id
+  value     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_variables")
+}
