@@ -70,20 +70,55 @@ async function main() {
   initializeKickBot();
 
   const startServer = () => {
-    const PORT = process.env.PORT || 3000;
+    const PORT = process.env.PORT || 3001;
+    const express = require('express');
+    const cors = require('cors');
+    const app = express();
+    
+    app.use(cors());
+    app.use(express.json());
 
-    const server = http.createServer((req, res) => {
-      if (req.url === "/health") {
-        res.writeHead(200, { "Content-Type": "text/plain" });
-        res.end("OK");
-      } else {
-        res.writeHead(200, { "Content-Type": "text/plain" });
-        res.end("Raganork Bot is running!");
+    app.get('/health', (req, res) => {
+      res.send('OK');
+    });
+
+    app.post('/api/sessions', async (req, res) => {
+      const { session } = req.body;
+      
+      if (!session || !session.startsWith('RGNK~')) {
+        return res.status(400).json({ success: false, error: 'Format de session invalide' });
+      }
+
+      try {
+        const { BotVariable } = require('./core/database');
+        const [botVar] = await BotVariable.findOrCreate({
+          where: { key: 'SESSION' },
+          defaults: { value: session }
+        });
+        
+        if (!botVar.value.includes(session)) {
+          botVar.value = botVar.value + ',' + session;
+          await botVar.save();
+        }
+        
+        logger.info(`Nouvelle session enregistrée via API: ${session}`);
+        res.json({ success: true, message: 'Session enregistrée avec succès' });
+      } catch (error) {
+        logger.error('Erreur API sessions:', error);
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
       }
     });
 
-    server.listen(PORT, () => {
-      logger.info(`Web server listening on port ${PORT}`);
+    app.get('/', (req, res) => {
+      res.send('Raganork Bot is running!');
+    });
+
+    app.use((req, res) => {
+      res.status(404).send('Route non trouvée');
+    });
+
+    app.listen(PORT, () => {
+      logger.info(`Express API listening on port ${PORT}`);
     });
   };
 

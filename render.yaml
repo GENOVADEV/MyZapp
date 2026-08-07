@@ -3,6 +3,7 @@ services:
     name: myzapp-bot
     env: docker
     plan: free
+    rootDir: ./myzapp-server
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:

@@ -56,8 +56,14 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
       return await message.edit(`_⚠️ Aucun membre cible trouvé pour la diffusion._`, message.jid, statusMsg.key);
     }
 
+    const estimatedSec = Math.ceil(total * 28.5);
+    const estTimeStr = estimatedSec > 3600 
+        ? `${Math.floor(estimatedSec / 3600)}h ${Math.floor((estimatedSec % 3600) / 60)}m` 
+        : `${Math.floor(estimatedSec / 60)}m ${estimatedSec % 60}s`;
+
     await message.edit(
       `_🚀 Début de la diffusion en privé à ${total} membre(s)..._\n` +
+      `_⏱️ Temps estimé : *${estTimeStr}*_\n` +
       `_🛡️ Bouclier Anti-Ban & Anti-428 activé :_\n` +
       `• *Anti-Rafale* : Rythme modéré & reconnexion auto\n` +
       `• *Spintax & Hash unique* par message\n` +
@@ -143,8 +149,14 @@ async function diffuseGroupMessage(message, msgToDiffuse, selectedGroupJids) {
   let sentCount = 0;
   let failedCount = 0;
 
+  const estimatedSec = Math.ceil(selectedGroupJids.length * 16.5);
+  const estTimeStr = estimatedSec > 3600 
+      ? `${Math.floor(estimatedSec / 3600)}h ${Math.floor((estimatedSec % 3600) / 60)}m` 
+      : `${Math.floor(estimatedSec / 60)}m ${estimatedSec % 60}s`;
+
   await message.edit(
-    `_📢 Début de la diffusion directe dans ${selectedGroupJids.length} groupe(s)...\n(Mode le plus sécurisé contre le signalement d'utilisateurs)_`,
+    `_📢 Début de la diffusion directe dans ${selectedGroupJids.length} groupe(s)...\n(Mode le plus sécurisé contre le signalement d'utilisateurs)_\n` +
+    `_⏱️ Temps estimé : *${estTimeStr}*_`,
     message.jid,
     statusMsg.key
   );
