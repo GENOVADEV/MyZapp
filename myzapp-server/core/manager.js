@@ -30,6 +30,28 @@ class BotManager {
         }
     }
 
+    async startSession(sessionId) {
+        if (this.bots.has(sessionId)) {
+            return { success: false, message: 'La session est déjà active sur le serveur.' };
+        }
+        try {
+            logger.info({ session: sessionId }, `Attempting to initialize bot dynamically.`);
+            const bot = new WhatsAppBot(sessionId);
+            await bot.initialize(); 
+            if (bot.sock) { 
+                this.bots.set(sessionId, bot);
+                logger.info({ session: sessionId }, `Bot initialized dynamically.`);
+                return { success: true, message: 'La session a été initialisée et démarrée avec succès.' };
+            } else {
+                logger.error({ session: sessionId }, `Bot object for session could not be initialized (sock is null).`);
+                return { success: false, message: "Impossible d'initialiser le bot (sock is null)." };
+            }
+        } catch (error) {
+            logger.error({ session: sessionId, err: error }, `Overall failure to initialize bot dynamically`);
+            return { success: false, error: error.message };
+        }
+    }
+
     getBot(sessionId) {
         return this.bots.get(sessionId);
     }

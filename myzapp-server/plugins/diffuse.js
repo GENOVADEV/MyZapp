@@ -13,7 +13,7 @@ const diffuseSessions = new Map();
 /**
  * Diffusion EN PRIVÉ (DMs) vers les membres des groupes avec BOUCLIER ANTI-BAN MAX & ANTI-RAFALE 428
  */
-async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
+async function diffuseMessage(message, msgToDiffuse, selectedGroupJids, speedMode = 1) {
   let statusMsg;
   try {
     statusMsg = await message.sendReply(`_⏳ Extraction sécurisée des participants depuis ${selectedGroupJids.length} groupe(s) (anti-rafale actif)..._`);
@@ -56,18 +56,27 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
       return await message.edit(`_⚠️ Aucun membre cible trouvé pour la diffusion._`, message.jid, statusMsg.key);
     }
 
-    const estimatedSec = Math.ceil(total * 28.5);
+    let estimatedSec = 0;
+    if (speedMode === 1) estimatedSec = Math.ceil(total * 28.5);
+    else if (speedMode === 2) estimatedSec = Math.ceil(total * 6.5);
+    else estimatedSec = 30; // Instantané = généralement moins d'une minute
+
     const estTimeStr = estimatedSec > 3600 
         ? `${Math.floor(estimatedSec / 3600)}h ${Math.floor((estimatedSec % 3600) / 60)}m` 
         : `${Math.floor(estimatedSec / 60)}m ${estimatedSec % 60}s`;
 
+    let speedText = "Normal (Recommandé)";
+    if (speedMode === 2) speedText = "Rapide";
+    if (speedMode === 3) speedText = "Instantané (Risqué)";
+
     await message.edit(
       `_🚀 Début de la diffusion en privé à ${total} membre(s)..._\n` +
+      `_⚡ Vitesse : *${speedText}*_\n` +
       `_⏱️ Temps estimé : *${estTimeStr}*_\n` +
       `_🛡️ Bouclier Anti-Ban & Anti-428 activé :_\n` +
-      `• *Anti-Rafale* : Rythme modéré & reconnexion auto\n` +
+      `• *Anti-Rafale* : Reconnexion auto\n` +
       `• *Spintax & Hash unique* par message\n` +
-      `• *Simulation de frappe* & *Pauses automatiques*`,
+      (speedMode < 3 ? `• *Simulation de frappe* & *Pauses automatiques*` : `• *Envoi groupé* (Simulation de frappe désactivée)`),
       message.jid, 
       statusMsg.key
     );
@@ -75,48 +84,82 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids) {
     let sentCount = 0;
     let failedCount = 0;
 
-    for (let i = 0; i < total; i++) {
-      const targetJid = targetsArray[i];
-
-      // 1. Pause de refroidissement tous les 10 messages pour bloquer la détection heuristique WhatsApp
-      if (i > 0 && i % 10 === 0) {
-        const pauseSec = Math.floor(Math.random() * (75 - 45 + 1)) + 45; // Pause aléatoire entre 45 et 75 sec
+    if (speedMode === 3) {
+      // 🚨 MODE INSTANTANÉ : Envois en parallèle par lots
+      const batchSize = 15; // Envoi de 15 messages à la fois
+      for (let i = 0; i < total; i += batchSize) {
+        const batch = targetsArray.slice(i, i + batchSize);
+        const promises = batch.map(targetJid => {
+          return safeSendMessage(message.client, targetJid, msgToDiffuse, { skipTyping: true })
+            .then(() => { sentCount++; })
+            .catch(err => {
+              console.error(`Échec envoi vers ${targetJid}:`, err?.message || err);
+              failedCount++;
+            });
+        });
+        
+        await Promise.all(promises);
+        
+        const percent = Math.floor((Math.min(i + batchSize, total) / total) * 100);
         await message.edit(
-          `_☕ [Anti-Ban] Pause de sécurité automatique de ${pauseSec}s après 10 messages pour réguler la connexion WhatsApp (${i}/${total})..._`,
-          message.jid,
-          statusMsg.key
-        );
-        await humanSleep(pauseSec * 1000, pauseSec * 1000 + 1000);
-        await message.edit(
-          `_🚀 Reprise de la diffusion : ${Math.floor((i / total) * 100)}% (${i}/${total})_`,
-          message.jid,
-          statusMsg.key
-        );
-      }
-
-      try {
-        // 2 & 3. Simulation, Obfuscation et Envoi résilient via safeSendMessage
-        // En cas de déconnexion temporaire 428, safeSendMessage attend et réessaye au lieu de crasher !
-        await safeSendMessage(message.client, targetJid, msgToDiffuse);
-        sentCount++;
-      } catch (error) {
-        console.error(`Échec envoi vers ${targetJid}:`, error?.message || error);
-        failedCount++;
-      }
-
-      // Mise à jour du statut tous les 5 messages ou à la fin
-      if (sentCount % 5 === 0 || i === total - 1) {
-        const percent = Math.floor(((i + 1) / total) * 100);
-        await message.edit(
-          `_🔄 Diffusion en cours : ${percent}% (${i + 1}/${total})_\n_✅ Réussis : ${sentCount} | ❌ Échoués : ${failedCount}_`,
+          `_🔄 Diffusion en cours : ${percent}% (${Math.min(i + batchSize, total)}/${total})_\n_✅ Réussis : ${sentCount} | ❌ Échoués : ${failedCount}_`,
           message.jid, 
           statusMsg.key
         );
+        
+        // Très courte pause entre les lots pour ne pas exploser la mémoire du socket
+        if (i + batchSize < total) await humanSleep(1000, 2000);
       }
-
-      // 4. Délai inter-message réaliste entre 12 et 24 secondes
-      if (i < total - 1 && (i + 1) % 10 !== 0) {
-        await humanSleep(12000, 24000);
+    } else {
+      // MODE NORMAL OU RAPIDE : Envois séquentiels
+      for (let i = 0; i < total; i++) {
+        const targetJid = targetsArray[i];
+  
+        // 1. Pause de refroidissement
+        let pauseInterval = speedMode === 1 ? 10 : 20;
+        if (i > 0 && i % pauseInterval === 0) {
+          const pauseSec = speedMode === 1 
+            ? Math.floor(Math.random() * (75 - 45 + 1)) + 45 // 45 à 75 sec pour Normal
+            : Math.floor(Math.random() * (15 - 5 + 1)) + 5;  // 5 à 15 sec pour Rapide
+            
+          await message.edit(
+            `_☕ [Anti-Ban] Pause de sécurité automatique de ${pauseSec}s après ${pauseInterval} messages..._`,
+            message.jid,
+            statusMsg.key
+          );
+          await humanSleep(pauseSec * 1000, pauseSec * 1000 + 1000);
+          await message.edit(
+            `_🚀 Reprise de la diffusion : ${Math.floor((i / total) * 100)}% (${i}/${total})_`,
+            message.jid,
+            statusMsg.key
+          );
+        }
+  
+        try {
+          // 2 & 3. Simulation, Obfuscation et Envoi résilient via safeSendMessage
+          const sendOptions = speedMode === 2 ? { skipTyping: true } : {};
+          await safeSendMessage(message.client, targetJid, msgToDiffuse, sendOptions);
+          sentCount++;
+        } catch (error) {
+          console.error(`Échec envoi vers ${targetJid}:`, error?.message || error);
+          failedCount++;
+        }
+  
+        // Mise à jour du statut tous les 5 messages ou à la fin
+        if (sentCount % 5 === 0 || i === total - 1) {
+          const percent = Math.floor(((i + 1) / total) * 100);
+          await message.edit(
+            `_🔄 Diffusion en cours : ${percent}% (${i + 1}/${total})_\n_✅ Réussis : ${sentCount} | ❌ Échoués : ${failedCount}_`,
+            message.jid, 
+            statusMsg.key
+          );
+        }
+  
+        // 4. Délai inter-message réaliste
+        if (i < total - 1 && (i + 1) % pauseInterval !== 0) {
+          if (speedMode === 1) await humanSleep(12000, 24000); // 12-24s
+          else await humanSleep(2000, 5000); // 2-5s
+        }
       }
     }
 
@@ -220,7 +263,8 @@ Module(
         return await message.sendReply("_❌ Aucun groupe correspondant trouvé._");
       }
 
-      return diffuseMessage(message, msgToDiffuse, selectedGroupJids);
+      // Par défaut, la commande inline .diffuse ... utilise la vitesse normale (1)
+      return diffuseMessage(message, msgToDiffuse, selectedGroupJids, 1);
     }
 
     diffuseSessions.set(message.sender, { step: 1, type: "private", message: null, groups: null });
@@ -345,14 +389,43 @@ Module(
       diffuseSessions.delete(message.sender); // Nettoyer la session
 
       if (selectedGroupJids.length === 0) {
+        diffuseSessions.delete(message.sender);
         return await message.sendReply("_❌ Sélection invalide. Opération annulée._");
       }
 
       if (diffType === "group") {
+        diffuseSessions.delete(message.sender);
         return diffuseGroupMessage(message, msgToDiffuse, selectedGroupJids);
       } else {
-        return diffuseMessage(message, msgToDiffuse, selectedGroupJids);
+        // C'est une diffusion privée -> Demander la vitesse
+        diffuseSessions.set(message.sender, {
+          step: 3,
+          type: "private",
+          message: msgToDiffuse,
+          selectedGroupJids: selectedGroupJids
+        });
+        
+        return await message.sendReply(
+          `_⚡ *Choisissez la vitesse de diffusion* :_\n\n` +
+          `*1* ➔ 🐢 Normal (Recommandé) : _100% Sécurisé, pauses régulières_\n` +
+          `*2* ➔ 🐇 Rapide : _Très rapide, pauses courtes_\n` +
+          `*3* ➔ 🚀 Instantané : _Envoi massif en < 1min sans pause._ ⚠️ *(Risque élevé de restriction WhatsApp)*\n\n` +
+          `_Répondez avec le chiffre (1, 2 ou 3)._`
+        );
       }
+    }
+
+    // Étape 3 : Choix de la vitesse (Seulement pour diffusion privée)
+    if (session.step === 3 && session.type === "private" && repliedText.includes("Choisissez la vitesse de diffusion")) {
+      const answer = parseInt(message.text.trim());
+      
+      if (![1, 2, 3].includes(answer)) {
+        return await message.sendReply("_❌ Choix invalide. Veuillez répondre par 1, 2 ou 3._");
+      }
+
+      diffuseSessions.delete(message.sender);
+      
+      return diffuseMessage(message, session.message, session.selectedGroupJids, answer);
     }
   }
 );

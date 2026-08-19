@@ -101,11 +101,20 @@ async function main() {
           await botVar.save();
         }
         
-        logger.info(`Nouvelle session enregistrée via API: ${session}`);
-        res.json({ success: true, message: 'Session enregistrée avec succès' });
+        logger.info(`Nouvelle session enregistrée en base de données: ${session}`);
+
+        // Démarrage dynamique du bot
+        const sessionIdToStart = session.includes('~') ? session.split('~')[1].trim() : session;
+        const startResult = await botManager.startSession(sessionIdToStart);
+        
+        if (startResult.success) {
+            res.json({ success: true, message: startResult.message });
+        } else {
+            res.status(500).json({ success: false, error: 'Session enregistrée mais le démarrage a échoué: ' + (startResult.message || startResult.error) });
+        }
       } catch (error) {
         logger.error('Erreur API sessions:', error);
-        res.status(500).json({ success: false, error: 'Erreur serveur' });
+        res.status(500).json({ success: false, error: 'Erreur serveur interne' });
       }
     });
 
