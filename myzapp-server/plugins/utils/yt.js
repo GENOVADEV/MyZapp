@@ -37,8 +37,8 @@ async function getVideoInfo(url) {
     const output = await youtubedl(url, {
       dumpJson: true,
       noWarnings: true,
-      callHome: false,
       noCheckCertificate: true,
+      extractorArgs: 'youtube:player_client=android',
     });
     
     return {
@@ -100,7 +100,8 @@ async function downloadAudio(url) {
       audioFormat: 'mp3',
       output: filePath,
       ffmpegLocation: ffmpegPath,
-      noWarnings: true
+      noWarnings: true,
+      extractorArgs: 'youtube:player_client=android'
     });
   } catch (err) {
     cleanupTempFiles(id); // En cas d'échec, supprimer tous les morceaux téléchargés
@@ -129,7 +130,8 @@ async function downloadVideo(url, quality) {
       format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
       output: filePath,
       ffmpegLocation: ffmpegPath,
-      noWarnings: true
+      noWarnings: true,
+      extractorArgs: 'youtube:player_client=android'
     });
   } catch (err) {
     cleanupTempFiles(id); // En cas d'échec, supprimer les flux vidéo/audio non fusionnés
