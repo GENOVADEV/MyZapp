@@ -34,7 +34,6 @@ function getDlOptions(baseOptions) {
   const options = {
     noWarnings: true,
     noCheckCertificate: true,
-    extractorArgs: 'youtube:player_client=android',
     ...baseOptions
   };
   
