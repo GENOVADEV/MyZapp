@@ -1,6 +1,6 @@
 const { WhatsAppBot } = require("./bot");
 const { logger, SESSION } = require('../config');
-const { sequelize } = require("./database");
+const { sequelize, BotVariable } = require("./database");
 const { CustomAuthState } = require("./auth");
 const { flushQueueOnShutdown, stopFlushTimer } = require("./store");
 
@@ -10,9 +10,25 @@ class BotManager {
     }
 
     async initializeBots() {
-        logger.info({ sessions: SESSION }, `Initializing all configured bots.`);
-        await CustomAuthState.deleteGarbageSessions(SESSION);        
-        for (const sessionId of SESSION) {
+        let dbSessions = [];
+        try {
+            const [botVar] = await BotVariable.findOrCreate({
+                where: { key: 'SESSION' },
+                defaults: { value: '' }
+            });
+            if (botVar.value) {
+                dbSessions = botVar.value.split(',').filter(Boolean);
+            }
+        } catch (dbErr) {
+            logger.error({ err: dbErr }, "Failed to read SESSION from BotVariable during initializeBots");
+        }
+
+        const allSessions = [...new Set([...SESSION, ...dbSessions])];
+
+        logger.info({ sessions: allSessions }, `Initializing all configured bots.`);
+        await CustomAuthState.deleteGarbageSessions(allSessions);        
+        
+        for (const sessionId of allSessions) {
             try {
                 logger.info({ session: sessionId }, `Attempting to initialize bot for session.`);
                 const bot = new WhatsAppBot(sessionId);
@@ -22,11 +38,29 @@ class BotManager {
                     logger.info({ session: sessionId }, `Bot initialization scheduled. Connection status will follow.`);
                 } else {
                     logger.error({ session: sessionId }, `Bot object for session could not be initialized (sock is null).`);
+                    await this.removeSessionFromDB(sessionId);
                 }
             } catch (error) {
-
                 logger.error({ session: sessionId, err: error }, `Overall failure to initialize bot in BotManager`);
+                await this.removeSessionFromDB(sessionId);
             }
+        }
+    }
+
+    async removeSessionFromDB(sessionId) {
+        try {
+            const botVar = await BotVariable.findOne({ where: { key: 'SESSION' } });
+            if (botVar && botVar.value) {
+                let sessionsArray = botVar.value.split(',').filter(Boolean);
+                if (sessionsArray.includes(sessionId)) {
+                    sessionsArray = sessionsArray.filter(s => s !== sessionId);
+                    botVar.value = sessionsArray.join(',');
+                    await botVar.save();
+                    logger.info({ session: sessionId }, `Session deleted from BotVariable database due to failure.`);
+                }
+            }
+        } catch (err) {
+            logger.error({ session: sessionId, err }, "Failed to remove faulty session from DB");
         }
     }
 

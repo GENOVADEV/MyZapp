@@ -28,18 +28,42 @@ function cleanupTempFiles(currentId = '', preservePath = null) {
 }
 
 /**
+ * Construit les options pour youtube-dl-exec en y injectant les cookies si configurés
+ */
+function getDlOptions(baseOptions) {
+  const options = {
+    noWarnings: true,
+    noCheckCertificate: true,
+    extractorArgs: 'youtube:player_client=android',
+    ...baseOptions
+  };
+  
+  // Utiliser la variable d'environnement ou le fichier existant
+  if (process.env.YOUTUBE_COOKIES) {
+    // Écrire les cookies depuis l'environnement (Render) vers le fichier
+    if (!fs.existsSync('cookies.txt')) {
+      try {
+        fs.writeFileSync('cookies.txt', process.env.YOUTUBE_COOKIES);
+      } catch (e) {
+         console.error("Failed to write cookies.txt", e);
+      }
+    }
+    options.cookies = 'cookies.txt';
+  } else if (fs.existsSync('cookies.txt')) {
+    options.cookies = 'cookies.txt';
+  }
+
+  return options;
+}
+
+/**
  * Get video info from a YouTube URL
  * @param {string} url 
  * @returns {Promise<Object>}
  */
 async function getVideoInfo(url) {
   try {
-    const output = await youtubedl(url, {
-      dumpJson: true,
-      noWarnings: true,
-      noCheckCertificate: true,
-      extractorArgs: 'youtube:player_client=android',
-    });
+    const output = await youtubedl(url, getDlOptions({ dumpJson: true }));
     
     return {
       title: output.title,
@@ -95,14 +119,12 @@ async function downloadAudio(url) {
   const ffmpegPath = require('ffmpeg-static');
   
   try {
-    await youtubedl(url, {
+    await youtubedl(url, getDlOptions({
       extractAudio: true,
       audioFormat: 'mp3',
       output: filePath,
-      ffmpegLocation: ffmpegPath,
-      noWarnings: true,
-      extractorArgs: 'youtube:player_client=android'
-    });
+      ffmpegLocation: ffmpegPath
+    }));
   } catch (err) {
     cleanupTempFiles(id); // En cas d'échec, supprimer tous les morceaux téléchargés
     throw err;
@@ -126,13 +148,11 @@ async function downloadVideo(url, quality) {
   const ffmpegPath = require('ffmpeg-static');
 
   try {
-    await youtubedl(url, {
+    await youtubedl(url, getDlOptions({
       format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
       output: filePath,
-      ffmpegLocation: ffmpegPath,
-      noWarnings: true,
-      extractorArgs: 'youtube:player_client=android'
-    });
+      ffmpegLocation: ffmpegPath
+    }));
   } catch (err) {
     cleanupTempFiles(id); // En cas d'échec, supprimer les flux vidéo/audio non fusionnés
     throw err;

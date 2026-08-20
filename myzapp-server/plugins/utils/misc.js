@@ -14,8 +14,24 @@ function isNumeric(num) {
   return !isNaN(num) && !isNaN(parseFloat(num));
 }
 
-function isAdmin(participants, jid) {
-  const admin = participants.find((p) => p.id === jid);
+async function isAdmin(messageOrParticipants, jid) {
+  let participants = messageOrParticipants;
+  
+  if (messageOrParticipants && messageOrParticipants.client && messageOrParticipants.jid) {
+    try {
+      const metadata = await messageOrParticipants.client.groupMetadata(messageOrParticipants.jid);
+      participants = metadata.participants;
+      if (!jid) {
+        jid = messageOrParticipants.client.user.id.split(":")[0] + "@s.whatsapp.net";
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
+  if (!Array.isArray(participants)) return false;
+
+  const admin = participants.find((p) => p.id === jid || (p.id && jid && p.id.includes(jid.split("@")[0])));
   return admin ? admin.admin === 'admin' || admin.admin === 'superadmin' : false;
 }
 

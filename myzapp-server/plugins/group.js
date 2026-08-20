@@ -132,7 +132,7 @@ Module(
     var init = match[1] || message.reply_message?.jid.split("@")[0];
     if (!init) return await message.sendReply(Lang.NEED_USER);
     var admin = await isAdmin(message);
-    if (!admin) return await message.sendReply(Lang.NOT_ADMIN);
+    // if (!admin) return await message.sendReply(Lang.NOT_ADMIN);
     var initt = init.split(" ").join("");
     var user = initt
       .replace(/\+/g, "")
@@ -143,7 +143,18 @@ Module(
       .replace(/\(/g, "")
       .replace(/\)/g, "")
       .replace(/-/g, "");
-    await message.client.groupAdd(user, message);
+    
+    try {
+      await message.client.groupParticipantsUpdate(
+        message.jid,
+        [user + "@s.whatsapp.net"],
+        "add"
+      );
+      await message.sendReply(`_✅ +${user} ajouté avec succès._`);
+    } catch (e) {
+      await message.sendReply(`_❌ Échec de l'ajout. Vérifiez que le numéro est correct et que ses paramètres de confidentialité le permettent._`);
+      console.error("Erreur lors de l'ajout :", e);
+    }
   }
 );
 Module(
@@ -250,14 +261,13 @@ Module(
         }
       };
       for (let x in approvalList) {
-        msg += `*_${parseInt(x) + 1}. @${
-          approvalList[x].jid.split("@")[0]
-        }_*\n  _• via: ${requestType(
-          approvalList[x].request_method,
-          approvalList[x].requestor
-        )}_\n  _• at: ${new Date(
-          parseInt(approvalList[x].request_time) * 1000
-        ).toLocaleString()}_\n\n`;
+        msg += `*_${parseInt(x) + 1}. @${approvalList[x].jid.split("@")[0]
+          }_*\n  _• via: ${requestType(
+            approvalList[x].request_method,
+            approvalList[x].requestor
+          )}_\n  _• at: ${new Date(
+            parseInt(approvalList[x].request_time) * 1000
+          ).toLocaleString()}_\n\n`;
       }
       return await message.client.sendMessage(
         message.jid,
@@ -743,7 +753,7 @@ Module(
     const isReply = !!message.reply_message;
     const customText = match[2]?.trim();
     const hasCustomText = customText && !customText.match(/(\d+@g\.us)/);
-    
+
     if (!isReply && !isTagAdmin && !isTagAll && !hasCustomText) {
       return await message.sendReply(
         `_Tag what?_\n\n${handler}tag \`<text here>\`\n${handler}tag \`admin\`\n${handler}tag \`all\`\n${handler}tag \`(reply)\`\n${handler}tag \`120363355307899193@g.us\``
@@ -758,7 +768,7 @@ Module(
       msgText += `${targets.length}. @${p.id.split("@")[0]}\n`;
     }
     if (isReply) {
-      await message.forwardMessage(message.jid, message.quoted,{detectLinks: true,contextInfo: {mentionedJid: targets, isForwarded: false}});
+      await message.forwardMessage(message.jid, message.quoted, { detectLinks: true, contextInfo: { mentionedJid: targets, isForwarded: false } });
     } else if (hasCustomText) {
       await message.client.sendMessage(message.jid, {
         text: customText,
@@ -834,9 +844,9 @@ Module(
     if (!command || (command !== "all" && command !== "recent")) {
       return await message.sendReply(
         "*Usage:*\n" +
-          "• `.getjids all` - Show all group JIDs\n" +
-          "• `.getjids recent` - Show recent chat JIDs (default 10)\n" +
-          "• `.getjids recent 15` - Show 15 recent chat JIDs"
+        "• `.getjids all` - Show all group JIDs\n" +
+        "• `.getjids recent` - Show recent chat JIDs (default 10)\n" +
+        "• `.getjids recent 15` - Show 15 recent chat JIDs"
       );
     }
     if (command === "all") {
@@ -854,9 +864,8 @@ Module(
         const endIdx = Math.min(startIdx + chunkSize, totalChats);
         let _msg = `*All Chat JIDs*\n`;
         if (totalMessages > 1) {
-          _msg += `Part ${msgIndex + 1}/${totalMessages}: Chats ${
-            startIdx + 1
-          }-${endIdx} of ${totalChats}\n\n`;
+          _msg += `Part ${msgIndex + 1}/${totalMessages}: Chats ${startIdx + 1
+            }-${endIdx} of ${totalChats}\n\n`;
         }
         while (
           chatIndex < groups.length &&

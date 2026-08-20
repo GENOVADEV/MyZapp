@@ -17,7 +17,7 @@ export default function Home() {
     setStatus(null);
 
     try {
-      const res = await fetch("http://localhost:3001/api/sessions", {
+      const res = await fetch("https://myzapp-bot.onrender.com/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session })
@@ -33,7 +33,7 @@ export default function Home() {
       }
     } catch (err) {
       console.error(err);
-      setStatus({ type: "error", message: "Erreur de connexion au serveur (Assurez-vous que le bot tourne bien sur le port 3001)" });
+      setStatus({ type: "error", message: "Erreur de connexion au serveur (Assurez-vous que le bot tourne bien sur l'URL de production)" });
     } finally {
       setLoading(false);
     }
