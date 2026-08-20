@@ -1,6 +1,5 @@
 const yts = require("youtube-sr").default;
 const youtubedl = require('youtube-dl-exec');
-const play = require('play-dl');
 const fs = require('fs');
 const path = require('path');
 
@@ -64,16 +63,15 @@ function getDlOptions(baseOptions) {
  */
 async function getVideoInfo(url) {
   try {
-    const info = await play.video_info(url);
-    const details = info.video_details;
+    const output = await youtubedl(url, getDlOptions({ dumpJson: true, ignoreNoFormatsError: true }));
     
     return {
-      title: details.title,
-      duration: details.durationRaw,
-      views: details.views,
-      channel: { name: details.channel?.name || "Unknown" },
-      url: details.url,
-      thumbnail: details.thumbnails && details.thumbnails.length > 0 ? details.thumbnails[0].url : "",
+      title: output.title,
+      duration: output.duration_string || output.duration,
+      views: output.view_count,
+      channel: { name: output.uploader },
+      url: output.webpage_url,
+      thumbnail: output.thumbnail,
       formats: [
          { type: "video", quality: "360p", size: "10MB" },
          { type: "audio", quality: "128kbps", size: "3MB" }
