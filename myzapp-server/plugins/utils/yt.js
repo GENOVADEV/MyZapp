@@ -120,6 +120,7 @@ async function downloadAudio(url) {
   
   try {
     await youtubedl(url, getDlOptions({
+      format: 'best',
       extractAudio: true,
       audioFormat: 'mp3',
       output: filePath,
