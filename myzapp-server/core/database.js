@@ -65,6 +65,16 @@ async function initializeDatabase() {
     try {
         await sequelize.authenticate();
         logger.info('Database connection established.');
+        
+        if (sequelize.getDialect() === 'postgres') {
+            try {
+                await sequelize.createSchema('myzapp');
+                logger.info('PostgreSQL schema "myzapp" created or already exists.');
+            } catch (err) {
+                logger.warn('Could not create schema "myzapp", it might already exist: ' + err.message);
+            }
+        }
+
         await WhatsappSession.sync();
         logger.info('WhatsappSession table synced.');
 

@@ -154,6 +154,7 @@ const sequelize = (() => {
   return new Sequelize(DATABASE_URL, {
     dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
     logging: DEBUG,
+    define: { schema: 'myzapp' },
     pool: {
       max: 20,
       min: 5,
