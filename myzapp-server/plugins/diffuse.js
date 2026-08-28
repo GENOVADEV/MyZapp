@@ -6,9 +6,111 @@ const {
   randomizeMessage,
   safeSendMessage 
 } = require("./utils/antiban");
+const config = require("../config");
+const { setVar } = require("./manage");
 
 // Map pour stocker les sessions interactives de diffusion. Clé = JID de l'expéditeur
 const diffuseSessions = new Map();
+
+let isBusinessQueueRunning = false;
+let diffuseGlobalClient = null;
+
+async function getDailySentCount() {
+  const today = new Date().toISOString().split("T")[0];
+  let data = { date: today, count: 0 };
+  if (config.WA_DAILY_SENT_COUNT) {
+    try {
+      const parsed = JSON.parse(config.WA_DAILY_SENT_COUNT);
+      if (parsed.date === today) {
+        data.count = parsed.count;
+      }
+    } catch(e) {}
+  }
+  return data;
+}
+
+async function incrementDailySentCount() {
+  const data = await getDailySentCount();
+  data.count++;
+  await setVar("WA_DAILY_SENT_COUNT", JSON.stringify(data));
+  config.WA_DAILY_SENT_COUNT = JSON.stringify(data);
+  return data.count;
+}
+
+async function processBusinessQueue() {
+  if (isBusinessQueueRunning || !diffuseGlobalClient) return;
+  isBusinessQueueRunning = true;
+
+  while (true) {
+    let queue = [];
+    if (config.DIFFUSE_QUEUE) {
+       try { queue = JSON.parse(config.DIFFUSE_QUEUE); } catch(e) {}
+    }
+    
+    if (queue.length === 0) {
+      isBusinessQueueRunning = false;
+      return;
+    }
+
+    const task = queue[0];
+    
+    const dailyData = await getDailySentCount();
+    if (dailyData.count >= 1000) {
+      const now = new Date();
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 1, 0);
+      const timeToWait = tomorrow.getTime() - now.getTime();
+      
+      try {
+         await diffuseGlobalClient.sendMessage(task.sender, { text: `_⚠️ Limite journalière de 1000 messages atteinte. La diffusion s'est mise en pause et reprendra automatiquement demain à 00h01._` });
+      } catch(e) {}
+      
+      await humanSleep(timeToWait, timeToWait + 10000);
+      continue;
+    }
+
+    const batchSize = Math.floor(Math.random() * (20 - 15 + 1)) + 15;
+    const targetsToProcess = task.targets.slice(0, batchSize);
+    
+    let sentInBatch = 0;
+    for (const targetJid of targetsToProcess) {
+       const checkLimit = await getDailySentCount();
+       if (checkLimit.count >= 1000) break;
+
+       try {
+         await safeSendMessage(diffuseGlobalClient, targetJid, task.message, { skipTyping: false });
+         await incrementDailySentCount();
+         task.sentCount = (task.sentCount || 0) + 1;
+         sentInBatch++;
+       } catch (err) {
+         task.failedCount = (task.failedCount || 0) + 1;
+       }
+       await humanSleep(5000, 15000); 
+    }
+    
+    task.targets = task.targets.slice(sentInBatch);
+    
+    if (task.targets.length === 0) {
+       queue.shift();
+       await setVar("DIFFUSE_QUEUE", JSON.stringify(queue));
+       config.DIFFUSE_QUEUE = JSON.stringify(queue);
+       
+       try {
+         await diffuseGlobalClient.sendMessage(task.sender, { text: `_✅ Diffusion Ultra-Sécurisée terminée !_\n• Livrés : ${task.sentCount}\n• Échecs : ${task.failedCount || 0}` });
+       } catch(e) {}
+    } else {
+       queue[0] = task;
+       await setVar("DIFFUSE_QUEUE", JSON.stringify(queue));
+       config.DIFFUSE_QUEUE = JSON.stringify(queue);
+       
+       try {
+         await diffuseGlobalClient.sendMessage(task.sender, { text: `_☕ Lot de ${sentInBatch} messages envoyé. Pause de sécurité de 15 à 20 minutes..._\n_Progression : ${task.sentCount} envoyés, ${task.targets.length} restants._` });
+       } catch(e) {}
+       
+       const pauseMs = (Math.floor(Math.random() * (20 - 15 + 1)) + 15) * 60 * 1000;
+       await humanSleep(pauseMs, pauseMs + 60000);
+    }
+  }
+}
 
 /**
  * Diffusion EN PRIVÉ (DMs) vers les membres des groupes avec BOUCLIER ANTI-BAN MAX & ANTI-RAFALE 428
@@ -68,6 +170,36 @@ async function diffuseMessage(message, msgToDiffuse, selectedGroupJids, speedMod
     let speedText = "Normal (Recommandé)";
     if (speedMode === 2) speedText = "Rapide";
     if (speedMode === 3) speedText = "Instantané (Risqué)";
+    if (speedMode === 4) speedText = "Ultra-Sécurisé (Business)";
+
+    if (speedMode === 4) {
+      let queue = [];
+      if (config.DIFFUSE_QUEUE) {
+         try { queue = JSON.parse(config.DIFFUSE_QUEUE); } catch(e) {}
+      }
+      queue.push({
+         sender: message.jid,
+         message: msgToDiffuse,
+         targets: targetsArray,
+         sentCount: 0,
+         failedCount: 0
+      });
+      await setVar("DIFFUSE_QUEUE", JSON.stringify(queue));
+      config.DIFFUSE_QUEUE = JSON.stringify(queue);
+      
+      if (!diffuseGlobalClient) diffuseGlobalClient = message.client;
+      
+      await message.edit(
+        `_🚀 Diffusion Ultra-Sécurisée ajoutée à la file d'attente._\n` +
+        `_Le bot enverra des lots de 15-20 messages suivis de pauses de 15-20min._\n` +
+        `_Vous recevrez des notifications de progression ici._`,
+        message.jid, 
+        statusMsg.key
+      );
+      
+      processBusinessQueue();
+      return;
+    }
 
     await message.edit(
       `_🚀 Début de la diffusion en privé à ${total} membre(s)..._\n` +
@@ -328,6 +460,11 @@ Module(
     fromMe: true
   },
   async (message) => {
+    if (!diffuseGlobalClient && message.client) {
+        diffuseGlobalClient = message.client;
+        processBusinessQueue();
+    }
+
     if (!message.reply_message) return;
     
     const session = diffuseSessions.get(message.sender);
@@ -409,8 +546,9 @@ Module(
           `_⚡ *Choisissez la vitesse de diffusion* :_\n\n` +
           `*1* ➔ 🐢 Normal (Recommandé) : _100% Sécurisé, pauses régulières_\n` +
           `*2* ➔ 🐇 Rapide : _Très rapide, pauses courtes_\n` +
-          `*3* ➔ 🚀 Instantané : _Envoi massif en < 1min sans pause._ ⚠️ *(Risque élevé de restriction WhatsApp)*\n\n` +
-          `_Répondez avec le chiffre (1, 2 ou 3)._`
+          `*3* ➔ 🚀 Instantané : _Envoi massif en < 1min sans pause._ ⚠️ *(Risque)*\n` +
+          `*4* ➔ 💼 Ultra-Sécurisé (WhatsApp Business) : _Lots de 15-20 msgs, pauses de 15-20min, limite 1000/jour. Résiste aux redémarrages._\n\n` +
+          `_Répondez avec le chiffre (1, 2, 3 ou 4)._`
         );
       }
     }
@@ -419,8 +557,8 @@ Module(
     if (session.step === 3 && session.type === "private" && repliedText.includes("Choisissez la vitesse de diffusion")) {
       const answer = parseInt(message.text.trim());
       
-      if (![1, 2, 3].includes(answer)) {
-        return await message.sendReply("_❌ Choix invalide. Veuillez répondre par 1, 2 ou 3._");
+      if (![1, 2, 3, 4].includes(answer)) {
+        return await message.sendReply("_❌ Choix invalide. Veuillez répondre par 1, 2, 3 ou 4._");
       }
 
       diffuseSessions.delete(message.sender);
