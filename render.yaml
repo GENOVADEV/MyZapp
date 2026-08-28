@@ -9,3 +9,5 @@ services:
         value: true
       - key: SESSION
         sync: false   # Indique au CLI de vous demander votre chaîne SESSION de manière sécurisée lors du premier déploiement
+      - key: GEMINI_API_KEY
+        value: AQ.Ab8RN6JaHx-U8ogNSTkPT2VmO9PvV9N9SqOzBhzmiFmffdNrtw
