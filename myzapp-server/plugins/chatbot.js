@@ -1,6 +1,7 @@
 const { Module } = require("../main");
 const config = require("../config");
 const axios = require("axios");
+const cron = require("node-cron");
 const fromMe = config.MODE !== "public";
 const { setVar } = require("./manage");
 const fs = require("fs");
@@ -19,8 +20,14 @@ const chatbotStates = new Map();
 const chatContexts = new Map();
 const modelStates = new Map();
 
+// New states for chatpost and user prompts
+const userPrompts = new Map();
+const chatpostSessions = new Map();
+let chatpostJobs = [];
+let globalClient = null;
+
 let globalSystemPrompt =
-  "You are a helpful AI assistant named Raganork. Be concise, friendly, and informative.";
+  "Tu es MyZapp, un agent IA convivial, amical et toujours là pour aider. Tu es concis et pertinent.";
 
 async function initChatbotData() {
   try {
@@ -37,9 +44,71 @@ async function initChatbotData() {
     if (systemPrompt) {
       globalSystemPrompt = systemPrompt;
     }
+    
+    // Load per-user prompts
+    const userPromptsData = config.CHATBOT_USER_PROMPTS;
+    if (userPromptsData) {
+      try {
+        const parsed = JSON.parse(userPromptsData);
+        for (const [jid, prompt] of Object.entries(parsed)) {
+          userPrompts.set(jid, prompt);
+        }
+      } catch (e) {
+        console.error("Error parsing user prompts:", e);
+      }
+    }
+
+    // Load chatpost schedules
+    const schedulesData = config.CHATPOST_SCHEDULES;
+    if (schedulesData) {
+      try {
+        const parsed = JSON.parse(schedulesData);
+        parsed.forEach(schedule => {
+          scheduleCronJob(schedule.targetJid, schedule.message, schedule.time);
+        });
+      } catch (e) {
+        console.error("Error parsing schedules:", e);
+      }
+    }
   } catch (error) {
     console.error("Error initializing chatbot data:", error);
   }
+}
+
+async function saveUserPrompts() {
+  try {
+    const obj = Object.fromEntries(userPrompts);
+    await setVar("CHATBOT_USER_PROMPTS", JSON.stringify(obj));
+  } catch (error) {
+    console.error("Error saving user prompts:", error);
+  }
+}
+
+async function saveSchedules(targetJid, message, time) {
+  try {
+    let current = config.CHATPOST_SCHEDULES ? JSON.parse(config.CHATPOST_SCHEDULES) : [];
+    current.push({ targetJid, message, time });
+    await setVar("CHATPOST_SCHEDULES", JSON.stringify(current));
+  } catch (error) {
+    console.error("Error saving schedules:", error);
+  }
+}
+
+function scheduleCronJob(targetJid, message, time) {
+  const [hour, minute] = time.split(":");
+  const cronExpr = `${minute} ${hour} * * *`;
+  
+  const job = cron.schedule(cronExpr, async () => {
+    if (globalClient) {
+      try {
+        await globalClient.sendMessage(targetJid, { text: message });
+      } catch (e) {
+        console.error(`Failed to send scheduled message to ${targetJid}:`, e);
+      }
+    }
+  });
+  
+  chatpostJobs.push(job);
 }
 
 async function saveChatbotData() {
@@ -95,10 +164,12 @@ async function getAIResponse(message, chatJid, imageBuffer = null) {
 
     const context = chatContexts.get(chatJid) || [];
 
+    const activePrompt = userPrompts.has(chatJid) ? userPrompts.get(chatJid) : globalSystemPrompt;
+
     const contents = [
       {
         role: "user",
-        parts: [{ text: `System: ${globalSystemPrompt}` }],
+        parts: [{ text: `System: ${activePrompt}` }],
       },
     ];
 
@@ -397,11 +468,12 @@ Module(
           );
         }
         const newPrompt = promptMatch[1];
-        await saveSystemPrompt(newPrompt);
+        userPrompts.set(chatJid, newPrompt);
+        await saveUserPrompts();
         return await message.sendReply(
-          `*_🎯 System Prompt Updated_*\n\n` +
+          `*_🎯 System Prompt Updated for this Chat_*\n\n` +
             `📝 _New Prompt:_ \`${newPrompt}\`\n\n` +
-            `_This will apply to all new conversations._`
+            `_This prompt will be used for AI responses in this specific conversation._`
         );
 
       case "clear":
@@ -459,7 +531,8 @@ Module(
             models.length
           }\`\n` +
           `💭 _Context Messages:_ \`${contextSize}\`\n` +
-          `🎯 _System Prompt:_ \`${globalSystemPrompt}\`\n` +
+          `🎯 _Global Prompt:_ \`${globalSystemPrompt.substring(0, 50)}...\`\n` +
+          `🎯 _Chat Prompt:_ \`${userPrompts.has(chatJid) ? userPrompts.get(chatJid).substring(0, 50) + "..." : "None (Using Global)"}\`\n` +
           `🔑 _API Key:_ \`${
             config.GEMINI_API_KEY ? "Configured ✅" : "Missing ❌"
           }\`\n\n` +
@@ -485,11 +558,133 @@ Module(
 
 Module(
   {
+    pattern: "chatpost",
+    fromMe: false,
+    desc: "Schedule automated messages for groups or contacts",
+    usage: ".chatpost",
+  },
+  async (message) => {
+    const sender = message.sender;
+    chatpostSessions.set(sender, {
+      step: 'TARGET_JID',
+      posts: []
+    });
+    
+    return await message.sendReply(
+      `📅 *Configuration de Post Automatique*\n\n` +
+      `Dans quel groupe ou à quel numéro voulez-vous planifier le message ?\n` +
+      `_(ex: 123456789@g.us pour un groupe, ou un numéro sans le +)_`
+    );
+  }
+);
+
+Module(
+  {
     on: "text",
     fromMe: false,
   },
   async (message) => {
     try {
+      if (!globalClient && message.client) {
+         globalClient = message.client;
+      }
+      
+      const sender = message.sender;
+      if (chatpostSessions.has(sender) && message.text) {
+        const session = chatpostSessions.get(sender);
+        const text = message.text.trim();
+        
+        if (text.toLowerCase() === 'cancel' || text.toLowerCase() === 'annuler') {
+           chatpostSessions.delete(sender);
+           return await message.sendReply("❌ _Planification annulée._");
+        }
+
+        switch (session.step) {
+          case 'TARGET_JID':
+            let target = text;
+            if (!target.includes('@')) {
+               target = target + '@s.whatsapp.net';
+            }
+            session.targetJid = target;
+            session.step = 'MESSAGE';
+            chatpostSessions.set(sender, session);
+            return await message.sendReply(`✅ Cible enregistrée : ${target}\n\nQuel est le message à publier ?`);
+            
+          case 'MESSAGE':
+            session.tempMessage = text;
+            session.step = 'AI_SUGGESTION';
+            chatpostSessions.set(sender, session);
+            
+            await message.sendReply("⏳ _L'IA analyse votre message pour l'améliorer..._");
+            
+            try {
+              const aiPrompt = `Réécris et améliore ce message pour qu'il soit plus structuré, pertinent et professionnel. Renvoie uniquement le texte amélioré sans autres commentaires.\nMessage original: ${text}`;
+              const aiSuggestion = await getAIResponse(aiPrompt, sender);
+              
+              session.aiSuggestion = aiSuggestion;
+              chatpostSessions.set(sender, session);
+              
+              return await message.sendReply(
+                `💡 *Voici une suggestion de l'IA pour améliorer votre message :*\n\n` +
+                `${aiSuggestion}\n\n` +
+                `*Lequel voulez-vous utiliser ?*\n` +
+                `1️⃣ Votre version originale\n` +
+                `2️⃣ La version de l'IA\n\n` +
+                `_(Répondez par 1 ou 2)_`
+              );
+            } catch (err) {
+               session.finalMessage = session.tempMessage;
+               session.step = 'TIME';
+               chatpostSessions.set(sender, session);
+               return await message.sendReply(`❌ Erreur IA. On garde votre version originale.\n\nA quelle heure ce message doit-il être envoyé tous les jours ? (Format HH:MM, ex: 14:30)`);
+            }
+            
+          case 'AI_SUGGESTION':
+            if (text === '1') {
+               session.finalMessage = session.tempMessage;
+            } else if (text === '2') {
+               session.finalMessage = session.aiSuggestion;
+            } else {
+               return await message.sendReply("⚠️ Veuillez répondre par 1 ou 2.");
+            }
+            session.step = 'TIME';
+            chatpostSessions.set(sender, session);
+            return await message.sendReply(`✅ Message sélectionné.\n\nA quelle heure ce message doit-il être envoyé tous les jours ? (Format HH:MM, ex: 14:30)`);
+            
+          case 'TIME':
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+            if (!timeRegex.test(text)) {
+               return await message.sendReply("⚠️ Format d'heure invalide. Utilisez HH:MM (ex: 08:30 ou 14:00).");
+            }
+            
+            session.posts.push({
+               targetJid: session.targetJid,
+               message: session.finalMessage,
+               time: text
+            });
+            
+            session.step = 'MORE_MESSAGES';
+            chatpostSessions.set(sender, session);
+            return await message.sendReply(`✅ Message programmé à ${text} !\n\nSouhaitez-vous envoyer un autre message à une autre heure à cette même cible ? (Oui/Non)`);
+            
+          case 'MORE_MESSAGES':
+            if (text.toLowerCase() === 'oui' || text.toLowerCase() === 'o') {
+               session.step = 'MESSAGE';
+               chatpostSessions.set(sender, session);
+               return await message.sendReply("Quel est le NOUVEAU message à publier ?");
+            } else {
+               let summary = "🎉 *Planification terminée !*\n\n";
+               for (const post of session.posts) {
+                  scheduleCronJob(post.targetJid, post.message, post.time);
+                  await saveSchedules(post.targetJid, post.message, post.time);
+                  summary += `- 🕒 ${post.time} -> ${post.targetJid}\n`;
+               }
+               chatpostSessions.delete(sender);
+               return await message.sendReply(summary);
+            }
+        }
+      }
+
       const chatJid = message.jid;
       const senderJid = message.sender;
       const isGroup = message.isGroup;
