@@ -12,4 +12,4 @@ services:
       - key: GEMINI_API_KEY
         value: AQ.Ab8RN6JaHx-U8ogNSTkPT2VmO9PvV9N9SqOzBhzmiFmffdNrtw
       - key: DATABASE_URL
-        value: postgresql://joinvesting_db_user:nG3RMqgXwtnKf9zp5juQiESZB9N6VbJp@dpg-da10ckpt0dsc73ao2190-a.singapore-postgres.render.com/joinvesting_db?sslmode=require
+        value: postgresql://joinvesting_db_user:nG3RMqgXwtnKf9zp5juQiESZB9N6VbJp@dpg-da10ckpt0dsc73ao2190-a.singapore-postgres.render.com/joinvesting_db?sslmode=require&schema=myzapp
