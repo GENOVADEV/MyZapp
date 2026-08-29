@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #00D06C;
+  --primary-glow: rgba(0, 208, 108, 0.4);
+  --accent-glow: rgba(0, 230, 118, 0.6);
+  --bg-dark: #060D1F;
+  --bg-card: rgba(15, 23, 42, 0.85);
+  --border-card: rgba(255, 255, 255, 0.08);
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: #F8FAFC;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #060D1F;
+}
+::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00D06C;
+}
+
+/* Glowing utilities */
+.glow-primary {
+  box-shadow: 0 0 25px rgba(0, 208, 108, 0.35);
+}
+
+.glow-border {
+  border-color: rgba(0, 208, 108, 0.3);
+  box-shadow: 0 0 15px rgba(0, 208, 108, 0.15);
+}
+
+.text-glow {
+  text-shadow: 0 0 15px rgba(0, 255, 162, 0.6);
+}
+
+.btn-myzapp {
+  background: linear-gradient(135deg, #00D06C 0%, #009E4F 100%);
+  color: #FFFFFF;
+  font-weight: 700;
+  border: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-myzapp:hover {
+  background: linear-gradient(135deg, #00FFA2 0%, #00D06C 100%);
+  box-shadow: 0 0 25px rgba(0, 208, 108, 0.5);
+  transform: translateY(-2px);
+  color: #060D1F;
+}
+
+.glass-card {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card:hover {
+  border-color: rgba(0, 208, 108, 0.25);
+  box-shadow: 0 10px 30px -10px rgba(0, 208, 108, 0.15);
+}

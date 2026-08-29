@@ -132,7 +132,7 @@ Module(
     var init = match[1] || message.reply_message?.jid.split("@")[0];
     if (!init) return await message.sendReply(Lang.NEED_USER);
     var admin = await isAdmin(message);
-    // if (!admin) return await message.sendReply(Lang.NOT_ADMIN);
+    if (!admin) return await message.sendReply(Lang.NOT_ADMIN);
     var initt = init.split(" ").join("");
     var user = initt
       .replace(/\+/g, "")
@@ -143,18 +143,7 @@ Module(
       .replace(/\(/g, "")
       .replace(/\)/g, "")
       .replace(/-/g, "");
-    
-    try {
-      await message.client.groupParticipantsUpdate(
-        message.jid,
-        [user + "@s.whatsapp.net"],
-        "add"
-      );
-      await message.sendReply(`_✅ +${user} ajouté avec succès._`);
-    } catch (e) {
-      await message.sendReply(`_❌ Échec de l'ajout. Vérifiez que le numéro est correct et que ses paramètres de confidentialité le permettent._`);
-      console.error("Erreur lors de l'ajout :", e);
-    }
+    await message.client.groupAdd(user, message);
   }
 );
 Module(
