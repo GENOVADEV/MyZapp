@@ -3,24 +3,24 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  Bot, 
-  Zap, 
-  QrCode, 
-  Phone, 
-  ShieldCheck, 
-  Radio, 
-  Power, 
-  Sparkles, 
-  CheckCircle2, 
-  AlertCircle, 
-  Copy, 
-  ExternalLink, 
-  RefreshCw, 
-  Send, 
-  Layers, 
-  MessageSquare, 
-  Settings, 
+import {
+  Bot,
+  Zap,
+  QrCode,
+  Phone,
+  ShieldCheck,
+  Radio,
+  Power,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Send,
+  Layers,
+  MessageSquare,
+  Settings,
   LogOut,
   Sliders,
   Play,
@@ -188,7 +188,7 @@ export default function UserAppDashboard() {
   return (
     <div className="min-h-screen bg-[#060D1F] pt-24 pb-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-8">
-        
+
         {/* User Header & Top Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-card p-6 rounded-3xl border border-white/10">
           <div className="flex items-center gap-4">
@@ -234,11 +234,10 @@ export default function UserAppDashboard() {
         {/* Action / Alert Message */}
         {actionMessage && (
           <div
-            className={`p-4 rounded-2xl text-xs font-semibold flex items-center gap-2.5 ${
-              actionMessage.type === "success"
+            className={`p-4 rounded-2xl text-xs font-semibold flex items-center gap-2.5 ${actionMessage.type === "success"
                 ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300"
                 : "bg-rose-500/15 border border-rose-500/30 text-rose-300"
-            }`}
+              }`}
           >
             {actionMessage.type === "success" ? (
               <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
@@ -260,9 +259,8 @@ export default function UserAppDashboard() {
                 </span>
                 <div className="flex items-center gap-2.5 mt-2">
                   <span
-                    className={`w-3.5 h-3.5 rounded-full ${
-                      isConnected ? "bg-[#00FFA2] animate-pulse shadow-lg shadow-emerald-500/50" : "bg-rose-500"
-                    }`}
+                    className={`w-3.5 h-3.5 rounded-full ${isConnected ? "bg-[#00FFA2] animate-pulse shadow-lg shadow-emerald-500/50" : "bg-rose-500"
+                      }`}
                   />
                   <h2 className="text-2xl font-black text-white">
                     {isConnected ? "Bot En Ligne & Actif" : "Bot Déconnecté"}
@@ -449,7 +447,7 @@ export default function UserAppDashboard() {
         {showStudio && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-[#0F172A] border border-white/15 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 relative max-h-[90vh] overflow-y-auto">
-              
+
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00D06C] to-[#00FFA2] p-0.5">
@@ -474,22 +472,20 @@ export default function UserAppDashboard() {
               <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-2xl border border-white/10">
                 <button
                   onClick={() => setStudioMethod("qr")}
-                  className={`py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                    studioMethod === "qr"
+                  className={`py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${studioMethod === "qr"
                       ? "bg-[#00D06C] text-[#060D1F] shadow-lg"
                       : "text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <QrCode size={16} />
                   <span>Scanner QR Code</span>
                 </button>
                 <button
                   onClick={() => setStudioMethod("pair")}
-                  className={`py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                    studioMethod === "pair"
+                  className={`py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${studioMethod === "pair"
                       ? "bg-[#00D06C] text-[#060D1F] shadow-lg"
                       : "text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <Phone size={16} />
                   <span>Code par Téléphone</span>
@@ -498,25 +494,21 @@ export default function UserAppDashboard() {
 
               {/* Interactive Iframe Window */}
               <div className="rounded-2xl border border-white/10 bg-[#060D1F] overflow-hidden relative min-h-[380px]">
-                <div className="bg-[#0A1128] px-4 py-2 text-[11px] text-slate-400 border-b border-white/5 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 font-mono">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    https://session.rgnk.site/{studioMethod === "qr" ? "qr-code" : "pairing-code"}
+                <div className="bg-[#0A1128] px-4 py-2.5 text-[11px] text-slate-400 border-b border-white/5 flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-medium text-slate-300">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <ShieldCheck size={13} className="text-[#00FFA2]" />
+                    <span>Passerelle Sécurisée MyZapp Authenticator</span>
                   </span>
-                  <a
-                    href={studioMethod === "qr" ? "https://session.rgnk.site/qr-code" : "https://session.rgnk.site/pairing-code"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-emerald-400 hover:underline flex items-center gap-1 text-[10px]"
-                  >
-                    Ouvrir séparément <ExternalLink size={10} />
-                  </a>
+                  <span className="badge badge-xs bg-emerald-500/20 text-[#00FFA2] border-none text-[10px] font-mono">
+                    Canal Direct SSL
+                  </span>
                 </div>
 
                 <iframe
                   src={studioMethod === "qr" ? "https://session.rgnk.site/qr-code" : "https://session.rgnk.site/pairing-code"}
                   className="w-full h-[360px] border-none bg-white rounded-b-2xl"
-                  title="WhatsApp Authentication Gateway"
+                  title="Passerelle d'Authentification MyZapp"
                 />
               </div>
 

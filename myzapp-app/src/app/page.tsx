@@ -646,7 +646,7 @@ export default function LandingPage() {
             <div className="flex items-start gap-3">
               <span className="badge badge-xs bg-sky-500 mt-1 shrink-0" />
               <div>
-                <strong className="text-white">Connexion WhatsApp par Iframe/SDK :</strong> Génération de QR Code et Pairing Code via `https://session.rgnk.site` avec copie automatique de session.
+                <strong className="text-white">Studio de Connexion WhatsApp Intégré :</strong> Génération de QR Code et Code d'Appairage sécurisé en 1 clic directement dans votre espace MyZapp.
               </div>
             </div>
             <div className="flex items-start gap-3">
