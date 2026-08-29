@@ -2,6 +2,7 @@ const { Module } = require("../main");
 const { isAdmin } = require("./utils");
 const { ADMIN_ACCESS, MODE } = require("../config");
 const isPrivateMode = MODE !== "public";
+
 Module(
   {
     pattern: "react ?(.*)",
@@ -23,6 +24,7 @@ Module(
     await m.client.sendMessage(m.jid, reactionMessage);
   }
 );
+
 Module(
   {
     pattern: "edit ?(.*)",
@@ -35,6 +37,7 @@ Module(
     }
   }
 );
+
 Module(
   {
     pattern: "send ?(.*)",
@@ -58,6 +61,7 @@ Module(
     }
   }
 );
+
 Module(
   {
     pattern: "forward ?(.*)",
@@ -81,6 +85,7 @@ Module(
     }
   }
 );
+
 Module(
   {
     pattern: "retry ?(.*)",
@@ -97,22 +102,29 @@ Module(
     });
   }
 );
+
+// ----------------------------------------------------------------------------------
+// ANTI-VUE UNIQUE (MANUEL & ENVOI DIRECT DANS LA DISCUSSION AVEC SOI-MÊME)
+// ----------------------------------------------------------------------------------
 Module(
   {
     pattern: "vv ?(.*)",
     fromMe: true,
-    desc: "Anti view once",
+    desc: "Déverrouille un message vue unique et l'envoie dans votre discussion privée",
     use: "utility",
   },
   async (m, match) => {
-    const quoted = m.quoted?.message,
-      realQuoted = m.quoted;
-
+    const quoted = m.quoted?.message;
     if (!m.reply_message || !quoted) {
-      return await m.sendReply("_Not a view once msg!_");
+      return await m.sendReply("_⚠️ Veuillez répondre à un message envoyé en vue unique._");
     }
 
-    if (match[1] && match[1].includes("@")) m.jid = match[1];
+    // Le destinataire par défaut est la discussion de l'utilisateur avec lui-même
+    const selfJid = m.client?.user?.id
+      ? m.client.user.id.split(":")[0] + "@s.whatsapp.net"
+      : m.sender;
+    
+    let destinationJid = (match[1] && match[1].includes("@")) ? match[1].trim() : selfJid;
 
     const viewOnceKey = [
       "viewOnceMessage",
@@ -125,9 +137,15 @@ Module(
       const msgType = Object.keys(realMessage)[0];
       if (realMessage[msgType]?.viewOnce) realMessage[msgType].viewOnce = false;
       m.quoted.message = realMessage;
-      return await m.forwardMessage(m.jid, m.quoted, {
+      
+      await m.forwardMessage(destinationJid, m.quoted, {
         contextInfo: { isForwarded: false },
       });
+
+      if (destinationJid === selfJid && m.jid !== selfJid) {
+        await m.sendReply(`_🔓 Message vue unique récupéré et envoyé dans votre discussion privée !_`);
+      }
+      return;
     }
 
     const directType = quoted.imageMessage
@@ -140,14 +158,74 @@ Module(
 
     if (directType && quoted[directType]?.viewOnce) {
       quoted[directType].viewOnce = false;
-      return await m.forwardMessage(m.jid, m.quoted, {
+      await m.forwardMessage(destinationJid, m.quoted, {
         contextInfo: { isForwarded: false },
       });
+
+      if (destinationJid === selfJid && m.jid !== selfJid) {
+        await m.sendReply(`_🔓 Message vue unique récupéré et envoyé dans votre discussion privée !_`);
+      }
+      return;
     }
 
-    await m.sendReply("_Not a view once msg!_");
+    await m.sendReply("_⚠️ Ce message n'est pas un média en vue unique._");
   }
 );
+
+// ----------------------------------------------------------------------------------
+// ANTI-VUE UNIQUE AUTOMATIQUE (Capture en direct dans les groupes & DMs)
+// ----------------------------------------------------------------------------------
+Module(
+  {
+    on: "message",
+    fromMe: false,
+  },
+  async (m) => {
+    try {
+      const rawMsg = m.message;
+      if (!rawMsg) return;
+
+      const viewOnceKey = [
+        "viewOnceMessage",
+        "viewOnceMessageV2",
+        "viewOnceMessageV2Extension",
+      ].find((key) => rawMsg.hasOwnProperty(key));
+
+      if (viewOnceKey) {
+        const realMessage = rawMsg[viewOnceKey].message;
+        const msgType = Object.keys(realMessage)[0];
+        if (realMessage[msgType]) {
+          realMessage[msgType].viewOnce = false;
+        }
+
+        const selfJid = m.client?.user?.id
+          ? m.client.user.id.split(":")[0] + "@s.whatsapp.net"
+          : null;
+
+        if (selfJid) {
+          const senderNum = m.sender ? m.sender.split("@")[0] : "Inconnu";
+          const isGroup = m.jid.endsWith("@g.us");
+          const captionHeader = `🔓 *[MYZAPP - ANTI VUE UNIQUE DÉTECTÉ]*\n👤 *Expéditeur :* +${senderNum}\n📍 *Provenance :* ${isGroup ? "Groupe (" + m.jid + ")" : "Message Privé (DM)"}\n🕒 *Reçu à :* ${new Date().toLocaleTimeString("fr-FR")}`;
+
+          await m.client.sendMessage(selfJid, {
+            text: captionHeader
+          });
+
+          // Forward du message déverrouillé
+          await m.client.sendMessage(selfJid, {
+            forward: {
+              key: m.key,
+              message: realMessage
+            }
+          });
+        }
+      }
+    } catch (err) {
+      // Ignore background processing errors
+    }
+  }
+);
+
 Module(
   {
     pattern: "delete",

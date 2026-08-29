@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   try {
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -25,31 +25,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
     }
 
-    const oldSession = user.activeSession;
+    const botServerUrl = process.env.BOT_SERVER_URL || "https://myzapp-bot.onrender.com";
+    let botServerData: any = null;
 
-    // 1. Mettre à jour l'utilisateur en base PostgreSQL
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { activeSession: null }
-    });
-
-    // 2. Notifier le serveur de bot pour détruire le socket et arrêter les processus
-    if (oldSession) {
-      const botServerUrl = process.env.BOT_SERVER_URL || "https://myzapp-bot.onrender.com";
+    if (user.activeSession) {
       try {
-        await fetch(`${botServerUrl}/api/bot/disconnect`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session: oldSession })
+        const response = await fetch(`${botServerUrl}/api/bot/status?session=${encodeURIComponent(user.activeSession)}`, {
+          headers: { 'Cache-Control': 'no-cache' }
         });
+        if (response.ok) {
+          botServerData = await response.json();
+        }
       } catch (err) {
-        console.warn("Could not reach bot server on disconnect:", err);
+        console.warn("Could not reach bot server:", err);
       }
     }
 
+    const isConnected = !!user.activeSession && (botServerData?.connected ?? true);
+
     return NextResponse.json({
-      success: true,
-      message: "Votre bot WhatsApp a été déconnecté avec succès."
+      connected: isConnected,
+      session: user.activeSession,
+      botConfig: user.botConfig ? (typeof user.botConfig === 'string' ? JSON.parse(user.botConfig) : user.botConfig) : null,
+      stats: botServerData?.stats || {
+        uptime: isConnected ? "En ligne" : "Arrêté",
+        ping: "24ms"
+      },
+      broadcast: botServerData?.broadcast || { status: 'idle', progress: 0 }
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
