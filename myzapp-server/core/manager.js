@@ -8,6 +8,7 @@ class BotManager {
     constructor() {
         this.bots = new Map(); // Key: sessionId (string) -> WhatsAppBot instance
         this.broadcastStates = new Map(); // Key: sessionId -> Broadcast state object
+        this.sessionStatuses = new Map(); // Key: sessionId -> { status, message, error, userJid, updatedAt }
     }
 
     normalizeSessionId(session) {
@@ -17,6 +18,57 @@ class BotManager {
             return s.split("~")[1] || s;
         }
         return s;
+    }
+
+    attachConnectionListeners(sessionId, bot) {
+        const normId = this.normalizeSessionId(sessionId);
+        if (!bot || !bot.sock || !bot.sock.ev) return;
+
+        try {
+            bot.sock.ev.on('connection.update', (update) => {
+                const { connection, lastDisconnect, qr } = update;
+                
+                if (connection === 'open') {
+                    const userJid = bot.sock.user?.id ? bot.sock.user.id.split(':')[0] + '@s.whatsapp.net' : null;
+                    logger.info({ session: sessionId, userJid }, "🟢 [WhatsApp] Connexion ouverte et authentifiée !");
+                    this.sessionStatuses.set(normId, {
+                        status: 'connected',
+                        connected: true,
+                        message: 'Connecté avec succès à WhatsApp',
+                        userJid: userJid,
+                        user: bot.sock.user,
+                        updatedAt: new Date().toISOString()
+                    });
+                    this.sessionStatuses.set(sessionId, this.sessionStatuses.get(normId));
+                } else if (connection === 'connecting') {
+                    logger.info({ session: sessionId }, "🟡 [WhatsApp] Négociation de la connexion...");
+                    this.sessionStatuses.set(normId, {
+                        status: 'connecting',
+                        connected: false,
+                        message: 'Authentification WhatsApp en cours...',
+                        updatedAt: new Date().toISOString()
+                    });
+                    this.sessionStatuses.set(sessionId, this.sessionStatuses.get(normId));
+                } else if (connection === 'close') {
+                    const statusCode = lastDisconnect?.error?.output?.statusCode;
+                    const errorMsg = lastDisconnect?.error?.message || "Connexion fermée";
+                    logger.warn({ session: sessionId, statusCode, errorMsg }, "🔴 [WhatsApp] Connexion fermée.");
+                    
+                    const isLoggedOut = statusCode === 401 || statusCode === 403;
+                    this.sessionStatuses.set(normId, {
+                        status: isLoggedOut ? 'error' : 'disconnected',
+                        connected: false,
+                        statusCode,
+                        error: errorMsg,
+                        message: isLoggedOut ? 'Session WhatsApp expirée ou déconnectée du téléphone' : 'Bot déconnecté',
+                        updatedAt: new Date().toISOString()
+                    });
+                    this.sessionStatuses.set(sessionId, this.sessionStatuses.get(normId));
+                }
+            });
+        } catch (err) {
+            logger.warn({ session: sessionId, err }, "Could not attach connection listener");
+        }
     }
 
     async initializeBots() {
@@ -42,6 +94,8 @@ class BotManager {
             try {
                 const normId = this.normalizeSessionId(sessionId);
                 logger.info({ session: sessionId, normId }, `Attempting to initialize bot for session.`);
+                this.sessionStatuses.set(normId, { status: 'connecting', connected: false, message: 'Démarrage du bot...' });
+                
                 const bot = new WhatsAppBot(sessionId);
                 await bot.initialize(); 
                 if (bot.sock) { 
@@ -49,13 +103,16 @@ class BotManager {
                     if (normId !== sessionId) {
                         this.bots.set(normId, bot);
                     }
+                    this.attachConnectionListeners(sessionId, bot);
                     logger.info({ session: sessionId }, `Bot initialization scheduled. Connection status will follow.`);
                 } else {
                     logger.error({ session: sessionId }, `Bot object for session could not be initialized (sock is null).`);
+                    this.sessionStatuses.set(normId, { status: 'error', connected: false, error: 'Impossible d\'initialiser le socket' });
                     await this.removeSessionFromDB(sessionId);
                 }
             } catch (error) {
                 logger.error({ session: sessionId, err: error }, `Overall failure to initialize bot in BotManager`);
+                this.sessionStatuses.set(this.normalizeSessionId(sessionId), { status: 'error', connected: false, error: error.message });
                 await this.removeSessionFromDB(sessionId);
             }
         }
@@ -79,11 +136,21 @@ class BotManager {
 
     async startSession(sessionId) {
         const normId = this.normalizeSessionId(sessionId);
-        if (this.bots.has(sessionId) || this.bots.has(normId)) {
-            return { success: true, message: 'La session est déjà active sur le serveur.' };
+        const existingBot = this.getBot(sessionId);
+        
+        if (existingBot && existingBot.sock) {
+            const isUserReady = !!(existingBot.sock.user?.id);
+            return {
+                success: true,
+                message: isUserReady ? 'La session est déjà connectée et active.' : 'La session est en cours de connexion...',
+                status: isUserReady ? 'connected' : 'connecting'
+            };
         }
+
         try {
             logger.info({ session: sessionId }, `Attempting to initialize bot dynamically.`);
+            this.sessionStatuses.set(normId, { status: 'connecting', connected: false, message: 'Démarrage et connexion à WhatsApp...' });
+            
             const bot = new WhatsAppBot(sessionId);
             await bot.initialize(); 
             if (bot.sock) { 
@@ -91,14 +158,21 @@ class BotManager {
                 if (normId !== sessionId) {
                     this.bots.set(normId, bot);
                 }
+                this.attachConnectionListeners(sessionId, bot);
                 logger.info({ session: sessionId }, `Bot initialized dynamically.`);
-                return { success: true, message: 'La session a été initialisée et démarrée avec succès.' };
+                return {
+                    success: true,
+                    message: 'La session a été initialisée. Connexion à WhatsApp en cours...',
+                    status: 'connecting'
+                };
             } else {
                 logger.error({ session: sessionId }, `Bot object for session could not be initialized (sock is null).`);
+                this.sessionStatuses.set(normId, { status: 'error', connected: false, error: 'Socket non créé' });
                 return { success: false, message: "Impossible d'initialiser le bot (sock is null)." };
             }
         } catch (error) {
             logger.error({ session: sessionId, err: error }, `Overall failure to initialize bot dynamically`);
+            this.sessionStatuses.set(normId, { status: 'error', connected: false, error: error.message });
             return { success: false, error: error.message };
         }
     }
@@ -107,6 +181,47 @@ class BotManager {
         if (!sessionId) return null;
         const normId = this.normalizeSessionId(sessionId);
         return this.bots.get(sessionId) || this.bots.get(normId) || null;
+    }
+
+    getStatus(sessionId) {
+        if (!sessionId) {
+            return { status: 'disconnected', connected: false, message: 'Aucune session fournie' };
+        }
+        const normId = this.normalizeSessionId(sessionId);
+        const recorded = this.sessionStatuses.get(normId) || this.sessionStatuses.get(sessionId);
+        const bot = this.getBot(sessionId);
+
+        const isSockActive = !!(bot && bot.sock);
+        const isUserReady = !!(bot && bot.sock && bot.sock.user && bot.sock.user.id);
+
+        if (isUserReady) {
+            const selfJid = bot.sock.user.id.split(':')[0] + '@s.whatsapp.net';
+            return {
+                status: 'connected',
+                connected: true,
+                message: 'En Ligne',
+                jid: selfJid,
+                user: bot.sock.user
+            };
+        }
+
+        if (isSockActive) {
+            return {
+                status: 'connecting',
+                connected: false,
+                message: recorded?.message || 'Authentification WhatsApp en cours...',
+                jid: null,
+                error: recorded?.error || null
+            };
+        }
+
+        return {
+            status: recorded?.status || 'disconnected',
+            connected: false,
+            message: recorded?.message || 'Bot Déconnecté',
+            jid: null,
+            error: recorded?.error || null
+        };
     }
 
     getSelfJid(sessionId) {
@@ -166,6 +281,7 @@ class BotManager {
         this.bots.delete(normId);
         this.broadcastStates.delete(sessionId);
         this.broadcastStates.delete(normId);
+        this.sessionStatuses.set(normId, { status: 'disconnected', connected: false, message: 'Déconnecté' });
 
         // Supprime de la base de données
         await this.removeSessionFromDB(sessionId);

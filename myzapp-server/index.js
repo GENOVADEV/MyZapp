@@ -73,34 +73,35 @@ async function main() {
     // 1. Health Check
     app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
-    // 2. Statut du Bot pour une session
+    // 2. Statut en direct du Bot pour une session
     app.get('/api/bot/status', async (req, res) => {
       const sessionId = req.query.session;
       if (!sessionId) {
         return res.status(400).json({ error: "Session manquante" });
       }
 
-      const bot = botManager.getBot(sessionId);
-      const isConnected = !!(bot && bot.sock && bot.sock.user);
-      const selfJid = isConnected ? botManager.getSelfJid(sessionId) : null;
+      const liveStatus = botManager.getStatus(sessionId);
       const bState = getBroadcastState(sessionId);
 
       res.json({
-        connected: isConnected,
+        connected: liveStatus.connected,
+        status: liveStatus.status, // 'connected' | 'connecting' | 'disconnected' | 'error'
+        message: liveStatus.message,
         session: sessionId,
-        jid: selfJid,
-        user: bot?.sock?.user || null,
+        jid: liveStatus.jid,
+        user: liveStatus.user || null,
+        error: liveStatus.error || null,
         stats: {
           uptime: process.uptime() ? `${Math.floor(process.uptime() / 60)} min` : "1 min",
-          ping: `${Math.floor(Math.random() * 30) + 15}ms`,
-          status: isConnected ? "En Ligne" : "Déconnecté"
+          ping: `${Math.floor(Math.random() * 20) + 15}ms`,
+          status: liveStatus.connected ? "En Ligne" : (liveStatus.status === 'connecting' ? "Connexion..." : "Déconnecté")
         },
         broadcast: bState
       });
     });
 
     // 3. Connexion d'une Session WhatsApp
-    app.post('/api/bot/connect', async (req, res) => {
+    const handleConnect = async (req, res) => {
       const { session } = req.body;
       if (!session || !session.startsWith('RGNK~')) {
         return res.status(400).json({ error: 'Format de session invalide. Le code doit débuter par RGNK~' });
@@ -121,15 +122,22 @@ async function main() {
         const startResult = await botManager.startSession(session);
         
         if (startResult.success) {
-          res.json({ success: true, message: 'Bot connecté avec succès !' });
+          res.json({
+            success: true,
+            message: startResult.message || 'Session initialisée avec succès ! Connexion à WhatsApp en cours...',
+            status: startResult.status || 'connecting'
+          });
         } else {
-          res.status(500).json({ error: startResult.message || 'Échec du démarrage du bot.' });
+          res.status(500).json({ error: startResult.message || startResult.error || 'Échec du démarrage du bot.' });
         }
       } catch (error) {
         logger.error('Erreur API connect:', error);
         res.status(500).json({ error: error.message });
       }
-    });
+    };
+
+    app.post('/api/bot/connect', handleConnect);
+    app.post('/api/sessions', handleConnect);
 
     // 4. Déconnexion Complète d'une Session WhatsApp
     app.post('/api/bot/disconnect', async (req, res) => {
@@ -182,7 +190,7 @@ async function main() {
 
       const bot = botManager.getBot(session);
       if (!bot || !bot.sock) {
-        return res.status(400).json({ error: "Le bot n'est pas connecté à WhatsApp." });
+        return res.status(400).json({ error: "Le bot n'est pas encore connecté à WhatsApp." });
       }
 
       try {
@@ -247,7 +255,6 @@ async function main() {
         (async () => {
           try {
             const { downloadVideo, downloadAudio } = require('./plugins/utils/yt');
-            const axios = require('axios');
 
             if (url.includes('youtube.com') || url.includes('youtu.be')) {
               if (format === 'mp3' || format === 'audio') {
@@ -272,7 +279,7 @@ async function main() {
                 }
               }
             } else {
-              // Téléchargement générique (TikTok, Facebook, Insta, etc.)
+              // Téléchargement générique
               await bot.sock.sendMessage(selfJid, {
                 text: `✅ *[MYZAPP]* Média traité pour : ${url}\nLien source disponible.`
               });

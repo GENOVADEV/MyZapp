@@ -30,26 +30,41 @@ export async function GET(req: Request) {
 
     if (user.activeSession) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+
         const response = await fetch(`${botServerUrl}/api/bot/status?session=${encodeURIComponent(user.activeSession)}`, {
+          signal: controller.signal,
           headers: { 'Cache-Control': 'no-cache' }
         });
+        clearTimeout(timeoutId);
+
         if (response.ok) {
           botServerData = await response.json();
         }
       } catch (err) {
-        console.warn("Could not reach bot server:", err);
+        // Bot server not reachable or timeout
       }
     }
 
-    const isConnected = !!user.activeSession && (botServerData?.connected ?? true);
+    const isConnected = !!user.activeSession && (botServerData?.connected ?? false);
+    const rawStatus = user.activeSession 
+      ? (botServerData?.status || (botServerData ? "disconnected" : "connecting"))
+      : "disconnected";
 
     return NextResponse.json({
       connected: isConnected,
+      status: rawStatus, // 'connected' | 'connecting' | 'disconnected' | 'error'
+      statusMessage: botServerData?.message || (isConnected ? "En Ligne" : (user.activeSession ? "Authentification en cours..." : "Déconnecté")),
       session: user.activeSession,
+      jid: botServerData?.jid || null,
+      user: botServerData?.user || null,
+      error: botServerData?.error || null,
       botConfig: user.botConfig ? (typeof user.botConfig === 'string' ? JSON.parse(user.botConfig) : user.botConfig) : null,
       stats: botServerData?.stats || {
         uptime: isConnected ? "En ligne" : "Arrêté",
-        ping: "24ms"
+        ping: "24ms",
+        status: isConnected ? "En Ligne" : (user.activeSession ? "Connexion..." : "Déconnecté")
       },
       broadcast: botServerData?.broadcast || { status: 'idle', progress: 0 }
     });
