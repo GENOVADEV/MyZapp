@@ -11,62 +11,86 @@ const client = new Client({
 
 async function initDB() {
   try {
-    console.log("Initialisation des tables PostgreSQL du schéma myzapp...");
+    console.log("Synchronisation des tables PostgreSQL du schéma myzapp...");
     await client.connect();
     
-    // Ensure schema
+    // 1. Ensure schema
     await client.query("CREATE SCHEMA IF NOT EXISTS myzapp;");
 
-    // Ensure User table
+    // 2. Ensure User table with matching schema.prisma columns
     await client.query(`
       CREATE TABLE IF NOT EXISTS myzapp."User" (
         "id" TEXT PRIMARY KEY,
         "name" TEXT NOT NULL,
         "email" TEXT UNIQUE NOT NULL,
         "phone" TEXT,
-        "password" TEXT NOT NULL,
-        "isVerified" BOOLEAN NOT NULL DEFAULT false,
+        "passwordHash" TEXT,
         "otpCode" TEXT,
-        "otpExpires" TIMESTAMP(3),
-        "resetOtp" TEXT,
-        "resetOtpExpires" TIMESTAMP(3),
+        "otpExpiry" TIMESTAMP(3),
+        "isVerified" BOOLEAN NOT NULL DEFAULT false,
         "activeSession" TEXT,
+        "role" TEXT NOT NULL DEFAULT 'USER',
+        "botConfig" TEXT DEFAULT '{}',
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    // Ensure WhatsappSession table
+    // 3. Ensure all columns exist if table was previously created with older column names
     await client.query(`
-      CREATE TABLE IF NOT EXISTS myzapp."WhatsappSession" (
-        "id" TEXT PRIMARY KEY,
-        "userId" TEXT NOT NULL,
-        "sessionString" TEXT NOT NULL,
-        "phone" TEXT,
-        "status" TEXT NOT NULL DEFAULT 'DISCONNECTED',
-        "lastConnected" TIMESTAMP(3),
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='myzapp' AND table_name='User' AND column_name='passwordHash') THEN
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='myzapp' AND table_name='User' AND column_name='password') THEN
+            ALTER TABLE myzapp."User" RENAME COLUMN "password" TO "passwordHash";
+          ELSE
+            ALTER TABLE myzapp."User" ADD COLUMN "passwordHash" TEXT;
+          END IF;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='myzapp' AND table_name='User' AND column_name='otpExpiry') THEN
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='myzapp' AND table_name='User' AND column_name='otpExpires') THEN
+            ALTER TABLE myzapp."User" RENAME COLUMN "otpExpires" TO "otpExpiry";
+          ELSE
+            ALTER TABLE myzapp."User" ADD COLUMN "otpExpiry" TIMESTAMP(3);
+          END IF;
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='myzapp' AND table_name='User' AND column_name='role') THEN
+          ALTER TABLE myzapp."User" ADD COLUMN "role" TEXT NOT NULL DEFAULT 'USER';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='myzapp' AND table_name='User' AND column_name='botConfig') THEN
+          ALTER TABLE myzapp."User" ADD COLUMN "botConfig" TEXT DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
+    // 4. Ensure WhatsappSessions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS myzapp."WhatsappSessions" (
+        "sessionId" TEXT PRIMARY KEY,
+        "sessionData" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "WhatsappSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES myzapp."User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    // Ensure bot_variables table
+    // 5. Ensure bot_variables table
     await client.query(`
       CREATE TABLE IF NOT EXISTS myzapp."bot_variables" (
-        "id" SERIAL PRIMARY KEY,
-        "key" VARCHAR(255) UNIQUE NOT NULL,
+        "key" TEXT PRIMARY KEY,
         "value" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    console.log("✅ Toutes les tables myzapp sont prêtes et opérationnelles !");
+    console.log("✅ Toutes les colonnes de myzapp.User sont synchronisées avec schema.prisma !");
     await client.end();
   } catch (err) {
     console.error("Erreur lors de l'initialisation DB :", err);
-    process.exit(0); // Don't fail build if offline
+    process.exit(0);
   }
 }
 
