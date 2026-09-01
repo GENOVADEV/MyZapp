@@ -1,6 +1,6 @@
 export default function LegalPage() {
   return (
-    <div className="min-h-screen pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen pt-6 sm:pt-12 pb-16 sm:pb-20 px-3 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-6 sm:space-y-8">
       <div className="text-center max-w-2xl mx-auto">
         <span className="text-xs font-black tracking-widest text-[#00FFA2] uppercase">Informations Légales</span>
         <h1 className="text-3xl sm:text-4xl font-black text-white mt-2 mb-3">

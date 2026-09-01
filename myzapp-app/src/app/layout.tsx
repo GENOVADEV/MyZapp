@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import AppShell from "@/components/AppShell";
 
 export const viewport: Viewport = {
   themeColor: "#00D06C",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
@@ -45,11 +45,7 @@ export default function RootLayout({
   return (
     <html lang="fr" data-theme="myzapp" className="dark">
       <body className="min-h-screen bg-[#060D1F] text-slate-100 antialiased selection:bg-[#00D06C] selection:text-[#060D1F]">
-        <div className="flex flex-col min-h-screen">
-          <Navbar />
-          <div className="flex-1">{children}</div>
-          <Footer />
-        </div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

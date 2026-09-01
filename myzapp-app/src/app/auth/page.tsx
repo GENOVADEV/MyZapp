@@ -281,7 +281,7 @@ function AuthContent() {
   };
 
   return (
-    <div className="min-h-screen pt-28 pb-16 flex flex-col justify-center items-center px-4 relative overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] pt-6 sm:pt-12 pb-12 sm:pb-16 flex flex-col justify-center items-center px-3 sm:px-4 relative overflow-hidden">
       {/* Background Lights */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[#00D06C]/15 blur-[140px] pointer-events-none rounded-full" />
       <div className="absolute bottom-10 right-10 w-[400px] h-[300px] bg-[#3B82F6]/10 blur-[130px] pointer-events-none rounded-full" />

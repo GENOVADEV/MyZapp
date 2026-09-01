@@ -28,6 +28,7 @@ import {
   Square,
   Download,
   Users,
+  User,
   Film,
   Music,
   FileText,
@@ -501,78 +502,140 @@ export default function UserAppDashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-black overflow-x-hidden">
       {/* ------------------------------------------------------------- */}
-      {/* TOP RESPONSIVE HEADER */}
+      {/* TOP RESPONSIVE HEADER (STUDIO EXCLUSIF) */}
       {/* ------------------------------------------------------------- */}
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 shadow-lg">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
-              <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-slate-950" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-base sm:text-lg font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-emerald-400 bg-clip-text text-transparent truncate">
-                  MyZapp Studio
+      <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 shadow-xl">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="navbar min-h-14 p-0 justify-between gap-2">
+            {/* Logo & Brand + Live Status Badge */}
+            <div className="navbar-start w-auto flex items-center gap-2 sm:gap-3 min-w-0">
+              <Link href="/app" className="flex items-center gap-2 sm:gap-2.5 min-w-0 group">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0 group-hover:scale-105 transition-transform">
+                  <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-slate-950" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm sm:text-base font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-emerald-400 bg-clip-text text-transparent truncate">
+                      MyZapp Studio
+                    </span>
+                  </div>
+                  <span className="hidden sm:block text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
+                    v6.2 Multi-Tenant
+                  </span>
+                </div>
+              </Link>
+
+              {/* Realtime Live Status Pill */}
+              <div className="shrink-0">
+                <span className={`badge badge-xs sm:badge-sm gap-1 font-semibold ${
+                  isConnected 
+                    ? "badge-success text-slate-950 font-bold" 
+                    : isConnecting 
+                    ? "badge-warning text-slate-950 animate-pulse font-bold" 
+                    : "badge-ghost border-rose-500/30 text-rose-400 bg-rose-500/10"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    isConnected ? "bg-emerald-950 animate-ping" : isConnecting ? "bg-amber-950" : "bg-rose-400"
+                  }`} />
+                  <span className="hidden xs:inline text-[10px]">
+                    {isConnected ? "En ligne" : isConnecting ? "Connexion..." : "Déconnecté"}
+                  </span>
                 </span>
               </div>
-              <span className="hidden sm:inline text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">
-                Multi-Tenant v2.5
-              </span>
             </div>
-          </div>
 
-          {/* Quick Header Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Kill Switch Button */}
-            <button
-              onClick={handleStopAll}
-              disabled={stoppingAll}
-              className="btn btn-xs sm:btn-sm bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-xl flex items-center gap-1 transition-all"
-              title="Arrêt d'urgence de toutes les diffusions et tâches"
-            >
-              <Square className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 fill-rose-400" />
-              <span className="hidden md:inline font-bold text-xs">Arrêt d'urgence</span>
-            </button>
-
-            {/* Connection Toggle Action */}
-            {isConnected ? (
+            {/* Quick Header Actions + User Profile Menu */}
+            <div className="navbar-end w-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Kill Switch Button */}
               <button
-                onClick={handleDisconnect}
-                disabled={connectLoading}
-                className="btn btn-xs sm:btn-sm btn-outline border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl flex items-center gap-1"
-                title="Déconnecter WhatsApp"
+                onClick={handleStopAll}
+                disabled={stoppingAll}
+                className="btn btn-xs sm:btn-sm bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-xl flex items-center gap-1 transition-all"
+                title="Arrêt d'urgence de toutes les diffusions et tâches"
               >
-                <Power className="w-3.5 h-3.5 text-rose-400" />
-                <span className="hidden sm:inline text-xs">Déconnecter</span>
+                <Square className="w-3.5 h-3.5 fill-rose-400 shrink-0" />
+                <span className="hidden sm:inline font-bold text-xs">Arrêt</span>
+                <span className="hidden md:inline font-bold text-xs">d'urgence</span>
               </button>
-            ) : (
-              <button
-                onClick={() => { setActiveTab("settings"); setShowStudio(true); }}
-                className="btn btn-xs sm:btn-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black border-none rounded-xl shadow-md shadow-emerald-500/20 flex items-center gap-1"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span className="text-xs">Connecter</span>
-              </button>
-            )}
 
-            {/* Logout App */}
-            <button
-              onClick={() => {
-                localStorage.removeItem("myzapp_token");
-                router.push("/auth");
-              }}
-              className="btn btn-xs sm:btn-sm btn-ghost text-slate-400 hover:text-white p-1.5"
-              title="Se déconnecter de l'application"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+              {/* Connection Toggle Action */}
+              {isConnected ? (
+                <button
+                  onClick={handleDisconnect}
+                  disabled={connectLoading}
+                  className="btn btn-xs sm:btn-sm btn-outline border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl flex items-center gap-1"
+                  title="Déconnecter WhatsApp"
+                >
+                  <Power className="w-3.5 h-3.5 text-rose-400" />
+                  <span className="hidden sm:inline text-xs">Déconnecter</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowStudio(true)}
+                  className="btn btn-xs sm:btn-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black border-none rounded-xl shadow-md shadow-emerald-500/20 flex items-center gap-1"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span className="text-xs">Connecter</span>
+                </button>
+              )}
+
+              {/* User Profile Dropdown Menu */}
+              <div className="dropdown dropdown-end">
+                <button
+                  tabIndex={0}
+                  role="button"
+                  className="btn btn-xs sm:btn-sm btn-ghost btn-circle text-slate-300 hover:text-white"
+                  aria-label="Menu profil utilisateur"
+                >
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-emerald-400">
+                    {user?.name ? user.name.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
+                  </div>
+                </button>
+                <ul
+                  tabIndex={0}
+                  className="dropdown-content z-50 menu p-2 shadow-2xl bg-slate-900 border border-slate-800 rounded-2xl w-56 space-y-1 mt-2"
+                >
+                  <li className="menu-title px-3 py-1.5 text-slate-400 text-[11px] font-semibold border-b border-slate-800">
+                    <div className="truncate text-white font-bold">{user?.name || "Utilisateur MyZapp"}</div>
+                    <div className="truncate text-[10px] text-slate-400">{user?.email || ""}</div>
+                  </li>
+                  <li>
+                    <Link href="/" className="text-xs text-slate-300 hover:text-white py-2 rounded-xl flex items-center gap-2">
+                      <Bot className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Accueil Landing</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setActiveTab("settings")}
+                      className="text-xs text-slate-300 hover:text-white py-2 rounded-xl flex items-center gap-2"
+                    >
+                      <Settings className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Appairage & Paramètres</span>
+                    </button>
+                  </li>
+                  <li className="border-t border-slate-800 pt-1">
+                    <button
+                      onClick={() => {
+                        localStorage.removeItem("myzapp_token");
+                        localStorage.removeItem("myzapp_user");
+                        router.push("/auth");
+                      }}
+                      className="text-xs text-rose-400 hover:bg-rose-500/10 py-2 rounded-xl flex items-center gap-2"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Se déconnecter</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Responsive Horizontal Scroll Tabs Bar */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 border-t border-slate-800/60 overflow-hidden">
-          <div className="flex space-x-1 overflow-x-auto no-scrollbar py-2 -mx-1 px-1">
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 border-t border-slate-800/60 overflow-hidden">
+          <div className="flex space-x-1.5 overflow-x-auto no-scrollbar py-2 -mx-1 px-1">
             {[
               { id: "overview", label: "Vue d'ensemble", icon: Layers },
               { id: "broadcast", label: "Diffusion", icon: Send },
@@ -588,13 +651,13 @@ export default function UserAppDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs whitespace-nowrap transition-all shrink-0 ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs whitespace-nowrap transition-all shrink-0 ${
                     isActive
                       ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 font-black"
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 font-semibold"
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -1468,39 +1531,20 @@ export default function UserAppDashboard() {
               {/* Studio Toggle Buttons */}
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <button
-                  onClick={() => { setShowStudio(true); setStudioMethod("qr"); }}
-                  className={`btn btn-sm sm:btn-md rounded-xl ${studioMethod === "qr" && showStudio ? "bg-emerald-500 text-slate-950 font-bold" : "btn-outline border-slate-700 text-slate-300"}`}
+                  onClick={() => { setStudioMethod("qr"); setShowStudio(true); }}
+                  className="btn btn-sm sm:btn-md bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/30 rounded-xl flex items-center justify-center gap-2"
                 >
                   <QrCode className="w-4 h-4" />
-                  <span>Appairage par QR Code</span>
+                  <span>Ouvrir l'Appairage par QR Code</span>
                 </button>
                 <button
-                  onClick={() => { setShowStudio(true); setStudioMethod("pair"); }}
-                  className={`btn btn-sm sm:btn-md rounded-xl ${studioMethod === "pair" && showStudio ? "bg-emerald-500 text-slate-950 font-bold" : "btn-outline border-slate-700 text-slate-300"}`}
+                  onClick={() => { setStudioMethod("pair"); setShowStudio(true); }}
+                  className="btn btn-sm sm:btn-md btn-outline border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl flex items-center justify-center gap-2"
                 >
                   <Phone className="w-4 h-4" />
                   <span>Code par Numéro de Téléphone</span>
                 </button>
               </div>
-
-              {/* Iframe Studio Container */}
-              {showStudio && (
-                <div className="rounded-2xl border border-slate-800 overflow-hidden bg-slate-950 p-2 space-y-2">
-                  <div className="bg-slate-900 px-3 py-2 rounded-xl flex items-center justify-between text-xs text-slate-400 font-mono">
-                    <span className="truncate">Passerelle Sécurisée MyZapp Authenticator [Canal Direct SSL]</span>
-                    <button onClick={() => setShowStudio(false)} className="hover:text-white shrink-0 ml-2">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="h-[400px] sm:h-[480px] w-full bg-white rounded-xl overflow-hidden">
-                    <iframe
-                      src={studioMethod === "qr" ? "https://session.rgnk.site/qr-code" : "https://session.rgnk.site/pairing-code"}
-                      className="w-full h-full border-0"
-                      title="MyZapp Authenticator SSL Gateway"
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Manual Session Code Input */}
               <form onSubmit={handleConnectSession} className="space-y-2.5 pt-3 border-t border-slate-800">
@@ -1546,6 +1590,86 @@ export default function UserAppDashboard() {
           </div>
         )}
       </main>
+
+      {/* ------------------------------------------------------------- */}
+      {/* GLOBAL STUDIO MODAL (DAISYUI RESPONSIVE MODAL) */}
+      {/* ------------------------------------------------------------- */}
+      {showStudio && (
+        <dialog className="modal modal-open modal-bottom sm:modal-middle bg-black/80 backdrop-blur-sm z-50 animate-fadeIn">
+          <div className="modal-box bg-slate-900 border border-slate-800 p-4 sm:p-6 max-w-2xl w-full text-slate-100 shadow-2xl rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-bold text-white truncate">Passerelle d'Appairage WhatsApp</h3>
+                  <p className="text-[10px] sm:text-xs text-slate-400">Canal direct sécurisé SSL</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowStudio(false)}
+                className="btn btn-sm btn-circle btn-ghost text-slate-400 hover:text-white"
+                aria-label="Fermer la fenêtre d'appairage"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Methods switch */}
+            <div className="grid grid-cols-2 gap-2 mt-3 p-1 rounded-xl bg-slate-950 border border-slate-800 shrink-0">
+              <button
+                onClick={() => setStudioMethod("qr")}
+                className={`btn btn-xs sm:btn-sm rounded-lg border-none text-xs font-bold transition-all ${
+                  studioMethod === "qr" ? "bg-emerald-500 text-slate-950 font-black shadow-md" : "btn-ghost text-slate-400"
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Appairage QR Code</span>
+              </button>
+              <button
+                onClick={() => setStudioMethod("pair")}
+                className={`btn btn-xs sm:btn-sm rounded-lg border-none text-xs font-bold transition-all ${
+                  studioMethod === "pair" ? "bg-emerald-500 text-slate-950 font-black shadow-md" : "btn-ghost text-slate-400"
+                }`}
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>Code Téléphone</span>
+              </button>
+            </div>
+
+            {/* Iframe container */}
+            <div className="mt-3 flex-1 min-h-[300px] sm:min-h-[380px] w-full bg-white rounded-2xl overflow-hidden shadow-inner">
+              <iframe
+                src={studioMethod === "qr" ? "https://session.rgnk.site/qr-code" : "https://session.rgnk.site/pairing-code"}
+                className="w-full h-full border-0"
+                title="MyZapp Authenticator SSL Gateway"
+              />
+            </div>
+
+            {/* Paste Session Input */}
+            <form onSubmit={handleConnectSession} className="mt-3 pt-3 border-t border-slate-800 flex flex-col sm:flex-row gap-2 shrink-0">
+              <input
+                type="text"
+                required
+                value={sessionInput}
+                onChange={(e) => setSessionInput(e.target.value)}
+                placeholder="Coller votre code RGNK~..."
+                className="input input-bordered input-sm sm:input-md flex-1 bg-slate-950 border-slate-700 text-white rounded-xl focus:border-emerald-500 font-mono text-xs"
+              />
+              <button
+                type="submit"
+                disabled={connectLoading || !sessionInput.trim()}
+                className="btn btn-sm sm:btn-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl px-4 shrink-0"
+              >
+                <Zap className="w-4 h-4" />
+                <span>{connectLoading ? "Liaison..." : "Lier la Session"}</span>
+              </button>
+            </form>
+          </div>
+          <div className="modal-backdrop bg-black/60" onClick={() => setShowStudio(false)} />
+        </dialog>
+      )}
     </div>
   );
 }

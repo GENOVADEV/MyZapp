@@ -41,10 +41,10 @@ export default function TutorialsPage() {
   ];
 
   return (
-    <div className="min-h-screen pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto space-y-12">
+    <div className="min-h-screen pt-6 sm:pt-12 pb-16 sm:pb-20 px-3 sm:px-6 lg:px-8 max-w-5xl mx-auto space-y-8 sm:space-y-12">
       <div className="text-center max-w-3xl mx-auto">
         <span className="text-xs font-black tracking-widest text-[#00D06C] uppercase">Tutoriels Pas à Pas</span>
-        <h1 className="text-3xl sm:text-5xl font-black text-white mt-2 mb-4">
+        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white mt-2 mb-3 sm:mb-4">
           Guides & Astuces MyZapp
         </h1>
         <p className="text-sm text-slate-400">
